@@ -16,6 +16,7 @@ package addrindex
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -292,10 +293,116 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// /insight-api/txs?address=<address>
-// /insight-api/txs?block=<blockhash>
-// GET /txs
-// router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
+// GetTransactions handles the /txs route
+func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+
+	var (
+		page    int
+		address string
+		block   string
+	)
+
+	if len(query["page"]) > 0 {
+		pg, err := strconv.ParseInt(query["page"][0], 10, 64)
+		if err != nil {
+			page = 0
+		} else {
+			page = int(pg)
+		}
+	} else {
+		page = 0
+	}
+
+	if len(query["address"]) > 0 {
+		address = query["address"][0]
+	}
+
+	if len(query["block"]) > 0 {
+		block = query["block"][0]
+	} else if len(query["block"]) > 1 {
+		w.Write(NewPostError("only one block accepted in query", fmt.Errorf("")))
+		return
+	}
+
+	if address != "" {
+		searchtxns, err := as.SearchRawTransactions(address, (int(page) * 10), 10)
+		if err != nil {
+			w.Write(NewPostError("failed to fetch address transactions", err))
+			return
+		}
+
+		txns, _ := json.Marshal(searchtxns.Result)
+		w.Write(txns)
+		return
+	}
+
+	if block != "" {
+		// Make the chainhash for fetching data
+		blockhash, err := chainhash.NewHashFromStr(block)
+		if err != nil {
+			w.Write(NewPostError("error parsing blockhash", err))
+			return
+		}
+
+		// Fetch block data
+		blockData, err := as.Client.GetBlockVerbose(blockhash)
+		if err != nil {
+			w.Write(NewPostError("failed to fetch block transactions", err))
+			return
+		}
+
+		// Initialize output
+		var txns = []*btcjson.TxRawResult{}
+
+		// fetch proper slice of transactions
+		var txs []string
+
+		// Pick the proper slice from the txs array
+		if len(blockData.Tx) < ((page) * 10) {
+			// If there is no data left to fetch, return error
+			w.WriteHeader(400)
+			w.Write(NewPostError("Out of bounds", fmt.Errorf("page %v doesn't exist", page)))
+			return
+			// If it's the last page, just return the last few transactions
+		} else if len(blockData.Tx)-((page+1)*10) <= 0 {
+			txs = blockData.Tx[int(page)*10:]
+			// Otherwise return a full page
+		} else {
+			txs = blockData.Tx[int(page)*10 : int(page+1)*10]
+		}
+
+		// Fetch individual transaction data and append it to the txns array
+		for _, tx := range txs {
+			txhash, err := chainhash.NewHashFromStr(tx)
+			if err != nil {
+				w.Write(NewPostError(fmt.Sprintf("error parsing transaction %v", tx), err))
+				return
+			}
+
+			txData, err := as.Client.GetRawTransactionVerbose(txhash)
+			if err != nil {
+				w.Write(NewPostError(fmt.Sprintf("error fetching transaction details: %v", tx), err))
+				return
+			}
+			txns = append(txns, txData)
+		}
+
+		// Return the JSON
+		out, _ := json.Marshal(txns)
+		w.Write(out)
+		return
+	}
+	w.WriteHeader(400)
+	w.Write(NewPostError("Need to pass ?block=BLOCKHASH or ?address=ADDR", fmt.Errorf("")))
+}
+
+// GetVersion handles the /version route
+func (as *AddrServer) GetVersion(w http.ResponseWriter, r *http.Request) {
+	w.Write(as.version())
+}
 
 // /insight-api/version
 // GET /version

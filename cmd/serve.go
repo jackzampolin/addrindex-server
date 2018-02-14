@@ -48,6 +48,8 @@ var serveCmd = &cobra.Command{
 		router.HandleFunc("/block-index/{height}", as.HandleGetBlockHash).Methods("GET")
 		router.HandleFunc("/status", as.GetStatus).Methods("GET")
 		router.HandleFunc("/sync", as.GetSync).Methods("GET")
+		router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
+		router.HandleFunc("/version", as.GetVersion).Methods("GET")
 
 		// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
 
@@ -55,23 +57,9 @@ var serveCmd = &cobra.Command{
 		// NOTE: this should fetch the last n blocks
 		// router.HandleFunc("/blocks", as.HandleGetBlocks).Methods("GET")
 
-		// /insight-api/peer
-		// getpeerinfo
-		// GET /peer
-		// router.HandleFunc("/peer", as.GetPeer).Methods("GET")
-
-		// /insight-api/version
-		// GET /version
-		// router.HandleFunc("/version", as.GetVersion).Methods("GET")
-
 		// NOTE: This pulls data from outside price APIs. Might want to implement a couple
 		// GET /currency
 		// router.HandleFunc("/currency", as.GetCurrency).Methods("GET")
-
-		// /insight-api/txs?address=<address>
-		// /insight-api/txs?block=<blockhash>
-		// GET /txs
-		// router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
 
 		log.Println(fmt.Sprintf("Listening on port ':%v'...", as.Port))
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", as.Port), handlers.LoggingHandler(os.Stdout, router)))

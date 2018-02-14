@@ -15,6 +15,7 @@
 package addrindex
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/btcsuite/btcd/rpcclient"
@@ -29,6 +30,19 @@ type AddrServer struct {
 	Port         int
 	Client       *rpcclient.Client
 	Transactions int
+
+	versionData versionData
+}
+
+func (as *AddrServer) version() []byte {
+	out, _ := json.Marshal(as.versionData)
+	return out
+}
+
+type versionData struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Branch  string `json:"branch"`
 }
 
 // AddrServerConfig configures the AddrServer
@@ -39,6 +53,9 @@ type AddrServerConfig struct {
 	SSL          bool   `json:"ssl"`
 	Port         int    `json:"port"`
 	Transactions int    `json:"transactions"`
+	Version      string
+	Commit       string
+	Branch       string
 }
 
 // NewAddrServer returns a new AddrServer instance
@@ -50,6 +67,11 @@ func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 		DisableTLS:   !cfg.SSL,
 		Port:         cfg.Port,
 		Transactions: cfg.Transactions,
+		versionData: versionData{
+			Version: cfg.Version,
+			Commit:  cfg.Commit,
+			Branch:  cfg.Branch,
+		},
 	}
 	client, err := rpcclient.New(out.connCfg(), nil)
 	if err != nil {

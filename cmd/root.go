@@ -24,20 +24,27 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var cfg *addrindex.AddrServerConfig
-
 var (
+	// Path to config
+	cfgFile string
+
+	// The actual app config
+	cfg *addrindex.AddrServerConfig
+
+	// Version for the application. Set via ldflags
 	Version = "undefined"
-	Commit  = "undefined"
-	Branch  = "undefined"
+
+	// Commit (git) for the application. Set via ldflags
+	Commit = "undefined"
+
+	// Branch (git) for the application. Set via ldflags
+	Branch = "undefined"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "addrindex-server",
 	Short: "An API compatable Insight API server w/o the nonsense",
-	// Version: "foo",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -51,20 +58,16 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.addrindex-server.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-// initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	cfg = &addrindex.AddrServerConfig{}
+	cfg = &addrindex.AddrServerConfig{
+		Version: Version,
+		Commit:  Commit,
+		Branch:  Branch,
+	}
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
@@ -83,8 +86,5 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		viper.Unmarshal(&cfg)
-		if err != nil {
-			panic(err)
-		}
 	}
 }
