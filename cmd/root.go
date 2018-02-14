@@ -1,4 +1,4 @@
-// Copyright © 2018 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2018 Jack Zampolin <jack@blockstack.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,10 +27,17 @@ import (
 var cfgFile string
 var cfg *addrindex.AddrServerConfig
 
+var (
+	Version = "undefined"
+	Commit  = "undefined"
+	Branch  = "undefined"
+)
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "addrindex-server",
 	Short: "An API compatable Insight API server w/o the nonsense",
+	// Version: "foo",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -53,15 +60,6 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-// Config represents the configuration of the server
-type Config struct {
-	Host string `json:"host"`
-	Usr  string `json:"usr"`
-	Pass string `json:"pass"`
-	SSL  bool   `json:"ssl"`
-	Port int    `json:"port"`
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -1,0 +1,13 @@
+package: github.com/jackzampolin/addrindex-server
+import:
+- package: github.com/btcsuite/btcd
+  subpackages:
+  - btcjson
+  - chaincfg/chainhash
+  - rpcclient
+- package: github.com/btcsuite/btcutil
+- package: github.com/gorilla/handlers
+- package: github.com/gorilla/mux
+- package: github.com/mitchellh/go-homedir
+- package: github.com/spf13/cobra
+- package: github.com/spf13/viper

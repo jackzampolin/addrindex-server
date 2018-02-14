@@ -12,4 +12,12 @@ usr: user
 pass: password
 ssl: false
 port: 18332
+
+# The number of transactions to return with each request
+# This affects the /addr/ routes and no other ones
+transactions: 50
 ```
+
+### Build
+
+To build the project have a working gopath and run `make`

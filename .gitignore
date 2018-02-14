@@ -1,2 +1,4 @@
 .*.yaml
-addrindex-server
+addrindex-server*
+vendor
+build

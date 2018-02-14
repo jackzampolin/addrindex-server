@@ -1,29 +1,26 @@
+// Copyright © 2018 Jack Zampolin <jack@blockstack.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package addrindex
 
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/btcsuite/btcd/btcjson"
 )
-
-// const v013 = "104.198.100.79:8332"
-// const v014 = "35.185.225.4:8332"
-// const v015 = "35.203.175.172:8332"
-
-// func GetPeople(w http.ResponseWriter, r *http.Request) {
-//     json.NewEncoder(w).Encode(people)
-// }
-
-func txids(txs []*btcjson.SearchRawTransactionsResult) []string {
-	out := []string{}
-	for _, txn := range txs {
-		out = append(out, txn.Txid)
-	}
-	return out
-}
 
 // SearchRawTransactions returns the result of a searchrawtransactions RPC call against the configured bitcoin node
 func (as *AddrServer) SearchRawTransactions(addr string, offset int, count int) (SearchRawTransactionsResult, error) {
@@ -32,7 +29,7 @@ func (as *AddrServer) SearchRawTransactions(addr string, offset int, count int) 
 	if err != nil {
 		return out, err
 	}
-	req.Header.Set("Content-Type", "tesxt/plain")
+	req.Header.Set("Content-Type", "text/plain")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -74,6 +71,7 @@ func newSearchRawTransactionRequest(addr string, offset int, count int) []byte {
 // UTXOs are a set of UTXO
 type UTXOs []UTXO
 
+// JSON returns the UTXO in a format for return to client
 func (utxos UTXOs) JSON() []byte {
 	utxo, err := json.Marshal(utxos)
 	if err != nil {
@@ -82,11 +80,21 @@ func (utxos UTXOs) JSON() []byte {
 	return utxo
 }
 
+// Balance returns the balance for a address
+func (utxos UTXOs) Balance() []byte {
+	var val int64
+	// var byt = []byte{}
+	for _, utxo := range utxos {
+		val += (utxo.Value)
+	}
+	return []byte(fmt.Sprintf("%v", val))
+}
+
 // UTXO models an unspent transaction output
 type UTXO struct {
 	TransactionHash string   `json:"transaction_hash"`
 	Outpoint        Outpoint `json:"outpoint"`
-	Value           float64  `json:"value"`
+	Value           int64    `json:"value"`
 	OutScript       string   `json:"out_script"`
 	Confirmations   int      `json:"confirmations"`
 }
@@ -105,7 +113,7 @@ func newUTXO(txid string, conf int, vout Vout) UTXO {
 			Hash:  txid,
 			Index: vout.N,
 		},
-		Value:         vout.Value,
+		Value:         int64(vout.Value * 100000000),
 		OutScript:     vout.ScriptPubKey.Hex,
 		Confirmations: conf,
 	}
@@ -158,7 +166,52 @@ type SearchRawTransactionsResult struct {
 	ID     interface{}  `json:"id"`
 }
 
+// Transactions is a group of Transaction
 type Transactions []Transaction
+
+// Received calculates the recieved btc by the address
+func (txns Transactions) Received(addr string) []byte {
+	var val int64
+	for _, txn := range txns {
+		for _, vout := range txn.Vout {
+			if vout.contains(addr) {
+				val += int64(vout.Value * 100000000)
+			}
+		}
+	}
+	return []byte(fmt.Sprintf("%v", val))
+}
+
+// Sent calculates the sent btc by the address
+func (txns Transactions) Sent(addr string) []byte {
+	var val int64
+	outputs := []UTXO{}
+
+	// First gather all the outputs from all the transactions that apply to the address
+	for _, tx := range txns {
+		for _, vout := range tx.Vout {
+			if vout.contains(addr) {
+				outputs = append(outputs, newUTXO(tx.Txid, tx.Confirmations, vout))
+			}
+		}
+	}
+
+	// Next, filter out spent outputs
+	for _, txo := range outputs {
+		unspent := true
+		for _, tx := range txns {
+			for _, vin := range tx.Vin {
+				if vin.Txid == txo.TransactionHash {
+					unspent = false
+				}
+			}
+		}
+		if unspent == false {
+			val += txo.Value
+		}
+	}
+	return []byte(fmt.Sprintf("%v", val))
+}
 
 // Transaction models a bitcoin tansaction
 type Transaction struct {
@@ -175,6 +228,15 @@ type Transaction struct {
 	Time          int    `json:"time"`
 	Blocktime     int    `json:"blocktime"`
 	Hex           string `json:"hex"`
+}
+
+// JSON returns the Transaction in a format for return to client
+func (tx Transaction) JSON() []byte {
+	txn, err := json.Marshal(tx)
+	if err != nil {
+		panic(err)
+	}
+	return txn
 }
 
 // Vin models a vin in a transaction

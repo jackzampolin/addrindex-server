@@ -1,4 +1,4 @@
-// Copyright © 2018 NAME HERE <EMAIL ADDRESS>
+// Copyright © 2018 Jack Zampolin <jack@blockstack.com>
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,6 +37,41 @@ var serveCmd = &cobra.Command{
 		router := mux.NewRouter()
 
 		router.HandleFunc("/addr/{addr}/utxo", as.HandleAddrUTXO).Methods("GET")
+		router.HandleFunc("/addr/{addr}/balance", as.HandleAddrBalance).Methods("GET")
+		router.HandleFunc("/addr/{addr}/totalReceived", as.HandleAddrRecieved).Methods("GET")
+		router.HandleFunc("/addr/{addr}/totalSent", as.HandleAddrSent).Methods("GET")
+		router.HandleFunc("/tx/{txid}", as.HandleTxGet).Methods("GET")
+		router.HandleFunc("/rawtx/{txid}", as.HandleRawTxGet).Methods("GET")
+		router.HandleFunc("/messages/verify", as.HandleMessagesVerify).Methods("POST")
+		router.HandleFunc("/tx/send", as.HandleTransactionSend).Methods("POST")
+		router.HandleFunc("/block/{blockHash}", as.HandleGetBlock).Methods("GET")
+		router.HandleFunc("/block-index/{height}", as.HandleGetBlockHash).Methods("GET")
+		router.HandleFunc("/status", as.GetStatus).Methods("GET")
+		router.HandleFunc("/sync", as.GetSync).Methods("GET")
+
+		// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
+
+		// /insight-api/blocks?limit=3&blockDate=2016-04-22
+		// NOTE: this should fetch the last n blocks
+		// router.HandleFunc("/blocks", as.HandleGetBlocks).Methods("GET")
+
+		// /insight-api/peer
+		// getpeerinfo
+		// GET /peer
+		// router.HandleFunc("/peer", as.GetPeer).Methods("GET")
+
+		// /insight-api/version
+		// GET /version
+		// router.HandleFunc("/version", as.GetVersion).Methods("GET")
+
+		// NOTE: This pulls data from outside price APIs. Might want to implement a couple
+		// GET /currency
+		// router.HandleFunc("/currency", as.GetCurrency).Methods("GET")
+
+		// /insight-api/txs?address=<address>
+		// /insight-api/txs?block=<blockhash>
+		// GET /txs
+		// router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
 
 		log.Println(fmt.Sprintf("Listening on port ':%v'...", as.Port))
 		log.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", as.Port), handlers.LoggingHandler(os.Stdout, router)))
@@ -45,14 +80,4 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// serveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
