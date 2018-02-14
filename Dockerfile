@@ -27,4 +27,6 @@ COPY --from=build-env /go/src/github.com/jackzampolin/addrindex-server/build/add
 
 COPY config.sample.yaml /root/.addrindex-server.yaml
 
-CMD ["addrindex-server"]
+ENTRYPOINT ["/usr/bin/addrindex-server"]
+
+CMD ["serve"]
