@@ -277,21 +277,21 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	case "getDifficulty":
 		info, err := as.Client.GetDifficulty()
 		if err != nil {
-			w.Write(NewPostError("failed to get info", err))
+			w.Write(NewPostError("failed to getDifficulty", err))
 			return
 		}
 		w.Write(NewGetDifficultyReturn(info))
 	case "getBestBlockHash":
 		info, err := as.Client.GetBestBlockHash()
 		if err != nil {
-			w.Write(NewPostError("failed to get info", err))
+			w.Write(NewPostError("failed to getBestBlockHash", err))
 			return
 		}
 		w.Write(NewGetBestBlockHashReturn(info.String()))
 	default:
 		info, err := as.Client.GetInfo()
 		if err != nil {
-			w.Write(NewPostError("failed to get info", err))
+			w.Write(NewPostError("failed to getInfo", err))
 			return
 		}
 		out, _ := json.Marshal(info)

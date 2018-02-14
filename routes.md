@@ -25,6 +25,13 @@
 #### `GET /block/{blockHash}`
 #### `GET /block-index/{height}`
 #### `GET /status`
+
+```
+GET /status?q=getInfo
+GET /status?q=getDifficulty
+GET /status?q=getBestBlockHash
+```
+
 #### `GET /sync`
 #### `GET /txs`
 
