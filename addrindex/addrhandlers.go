@@ -266,8 +266,14 @@ func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
 // GetStatus handles the /status route
 func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	method := r.URL.Query()["q"]
-	switch method[0] {
+	query := r.URL.Query()
+	method := "getInfo"
+
+	if len(query["q"]) > 0 {
+		method = query["q"][0]
+	}
+
+	switch method {
 	case "getDifficulty":
 		info, err := as.Client.GetDifficulty()
 		if err != nil {
