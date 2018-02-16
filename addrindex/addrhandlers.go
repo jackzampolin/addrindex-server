@@ -148,7 +148,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	}
 
 	// Unmarshal
-	err = json.Unmarshal(b, tx)
+	err = json.Unmarshal(b, &tx)
 	if err != nil {
 		w.Write(NewPostError("unable to unmarshall body", err))
 		return
@@ -171,7 +171,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	w.Write(out)
 }
 
-// HandleMessagesVerify handles the /tx/send route
+// HandleMessagesVerify handles the /messages/verify route
 // TODO: Test this somehow?
 func (as *AddrServer) HandleMessagesVerify(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -459,14 +459,14 @@ func NewGetBestBlockHashReturn(blockhash string) []byte {
 // PostError models an error returned to a client during the post
 type PostError struct {
 	Message string `json:"message"`
-	Error   error  `json:"error"`
+	Error   string `json:"error"`
 }
 
 // NewPostError is a convinence function for returning errors to clients
 func NewPostError(msg string, err error) []byte {
 	out, _ := json.Marshal(PostError{
 		Message: msg,
-		Error:   err,
+		Error:   err.Error(),
 	})
 	return out
 }
