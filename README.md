@@ -1,5 +1,7 @@
 # `addrindex-server`
 
+> TODO: Fix resonse codes
+
 This is a server to pair with an individual `bitcoind` node with the `addrindex` patch enabled. 
 
 ### Configuration
@@ -121,3 +123,4 @@ To build the project have a working gopath and run `make`
   "fees": 5.34e-05
 }
 ```
+

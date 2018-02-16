@@ -15,6 +15,7 @@
 package addrindex
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -154,8 +155,15 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Convert hex to string
+	dec, err := hex.DecodeString(tx.Tx)
+	if err != nil {
+		w.Write(NewPostError("unable to decode hex string", err))
+		return
+	}
+
 	// Convert tansaction to send format
-	txn, err := btcutil.NewTxFromBytes([]byte(tx.Tx))
+	txn, err := btcutil.NewTxFromBytes(dec)
 	if err != nil {
 		w.Write(NewPostError("unable to parse transaction", err))
 		return
