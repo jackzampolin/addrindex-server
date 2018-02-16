@@ -1,7 +1,5 @@
 # `addrindex-server`
 
-> TODO: Fix resonse codes
-
 This is a server to pair with an individual `bitcoind` node with the `addrindex` patch enabled. 
 
 ### Configuration

@@ -36,6 +36,7 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	// paginate through transactions
 	txns, err := as.fetchAllTransactions(addr)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
@@ -52,6 +53,7 @@ func (as *AddrServer) HandleAddrBalance(w http.ResponseWriter, r *http.Request) 
 	// paginate through transactions
 	txns, err := as.fetchAllTransactions(addr)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
@@ -67,6 +69,7 @@ func (as *AddrServer) HandleAddrRecieved(w http.ResponseWriter, r *http.Request)
 	// paginate through transactions
 	txns, err := as.fetchAllTransactions(addr)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
@@ -82,6 +85,7 @@ func (as *AddrServer) HandleAddrSent(w http.ResponseWriter, r *http.Request) {
 	// paginate through transactions
 	txns, err := as.fetchAllTransactions(addr)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
@@ -97,6 +101,7 @@ func (as *AddrServer) HandleTxGet(w http.ResponseWriter, r *http.Request) {
 	// Make the chainhash for fetching data
 	hash, err := chainhash.NewHashFromStr(txid)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error parsing txhash", err))
 		return
 	}
@@ -104,6 +109,7 @@ func (as *AddrServer) HandleTxGet(w http.ResponseWriter, r *http.Request) {
 	// fetch transaction details
 	raw, err := as.Client.GetRawTransactionVerbose(hash)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching transaction details", err))
 		return
 	}
@@ -120,6 +126,7 @@ func (as *AddrServer) HandleRawTxGet(w http.ResponseWriter, r *http.Request) {
 	// Make the chainhash for fetching data
 	hash, err := chainhash.NewHashFromStr(txid)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error parsing txhash", err))
 		return
 	}
@@ -127,6 +134,7 @@ func (as *AddrServer) HandleRawTxGet(w http.ResponseWriter, r *http.Request) {
 	// fetch transaction details
 	raw, err := as.Client.GetRawTransactionVerbose(hash)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching transaction details", err))
 		return
 	}
@@ -144,6 +152,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	// Read post body
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to read post body", err))
 		return
 	}
@@ -151,6 +160,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	// Unmarshal
 	err = json.Unmarshal(b, &tx)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to unmarshall body", err))
 		return
 	}
@@ -158,6 +168,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	// Convert hex to string
 	dec, err := hex.DecodeString(tx.Tx)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to decode hex string", err))
 		return
 	}
@@ -165,12 +176,14 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 	// Convert tansaction to send format
 	txn, err := btcutil.NewTxFromBytes(dec)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to parse transaction", err))
 		return
 	}
 
 	ret, err := as.Client.SendRawTransaction(txn.MsgTx(), true)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to post transaction to node", err))
 		return
 	}
@@ -188,6 +201,7 @@ func (as *AddrServer) HandleMessagesVerify(w http.ResponseWriter, r *http.Reques
 	// Read post body
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to read post body", err))
 		return
 	}
@@ -195,18 +209,21 @@ func (as *AddrServer) HandleMessagesVerify(w http.ResponseWriter, r *http.Reques
 	// Unmarshal
 	err = json.Unmarshal(b, tx)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to unmarshall body", err))
 		return
 	}
 
 	addr, err := btcutil.DecodeAddress(tx.BitcoinAddress, nil)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable to decode bitcoin address", err))
 		return
 	}
 
 	ret, err := as.Client.VerifyMessage(addr, tx.Signature, tx.Message)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("unable verify message", err))
 		return
 	}
@@ -223,6 +240,7 @@ func (as *AddrServer) HandleGetBlock(w http.ResponseWriter, r *http.Request) {
 	// Make the chainhash for fetching data
 	hash, err := chainhash.NewHashFromStr(blockhash)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error parsing txhash", err))
 		return
 	}
@@ -230,6 +248,7 @@ func (as *AddrServer) HandleGetBlock(w http.ResponseWriter, r *http.Request) {
 	// paginate through transactions
 	block, err := as.Client.GetBlockVerbose(hash)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching block", err))
 		return
 	}
@@ -244,12 +263,14 @@ func (as *AddrServer) HandleGetBlockHash(w http.ResponseWriter, r *http.Request)
 
 	h, err := strconv.ParseInt(height, 10, 64)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error parsing blockheight", err))
 		return
 	}
 
 	block, err := as.Client.GetBlockHash(h)
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching blockhash", err))
 		return
 	}
@@ -264,6 +285,7 @@ func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
 
 	chainInfo, err := as.Client.GetBlockChainInfo()
 	if err != nil {
+		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching blockchain info", err))
 		return
 	}
@@ -285,6 +307,7 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	case "getDifficulty":
 		info, err := as.Client.GetDifficulty()
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("failed to getDifficulty", err))
 			return
 		}
@@ -292,6 +315,7 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	case "getBestBlockHash":
 		info, err := as.Client.GetBestBlockHash()
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("failed to getBestBlockHash", err))
 			return
 		}
@@ -299,6 +323,7 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	default:
 		info, err := as.Client.GetInfo()
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("failed to getInfo", err))
 			return
 		}
@@ -337,6 +362,7 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	if len(query["block"]) > 0 {
 		block = query["block"][0]
 	} else if len(query["block"]) > 1 {
+		w.WriteHeader(400)
 		w.Write(NewPostError("only one block accepted in query", fmt.Errorf("")))
 		return
 	}
@@ -344,6 +370,7 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	if address != "" {
 		searchtxns, err := as.SearchRawTransactions(address, (int(page) * 10), 10)
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("failed to fetch address transactions", err))
 			return
 		}
@@ -357,6 +384,7 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 		// Make the chainhash for fetching data
 		blockhash, err := chainhash.NewHashFromStr(block)
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("error parsing blockhash", err))
 			return
 		}
@@ -364,6 +392,7 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 		// Fetch block data
 		blockData, err := as.Client.GetBlockVerbose(blockhash)
 		if err != nil {
+			w.WriteHeader(400)
 			w.Write(NewPostError("failed to fetch block transactions", err))
 			return
 		}
@@ -392,12 +421,14 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 		for _, tx := range txs {
 			txhash, err := chainhash.NewHashFromStr(tx)
 			if err != nil {
+				w.WriteHeader(400)
 				w.Write(NewPostError(fmt.Sprintf("error parsing transaction %v", tx), err))
 				return
 			}
 
 			txData, err := as.Client.GetRawTransactionVerbose(txhash)
 			if err != nil {
+				w.WriteHeader(400)
 				w.Write(NewPostError(fmt.Sprintf("error fetching transaction details: %v", tx), err))
 				return
 			}
