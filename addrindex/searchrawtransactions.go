@@ -49,14 +49,14 @@ func (as *AddrServer) SearchRawTransactions(addr string, offset int, count int) 
 	return out, nil
 }
 
-type searchRawTransactionsRequest struct {
+type BitcoreRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  string        `json:"method"`
 	Params  []interface{} `json:"params"`
 }
 
 func newSearchRawTransactionRequest(addr string, offset int, count int) []byte {
-	srtr := searchRawTransactionsRequest{
+	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "searchrawtransactions",
 		Params:  []interface{}{addr, 1, offset, count},
@@ -267,4 +267,405 @@ type ScriptPubKey struct {
 	ReqSigs   int      `json:"reqSigs"`
 	Type      string   `json:"type"`
 	Addresses []string `json:"addresses"`
+}
+
+func newBitcoreAddressesStartEndRequest(addresses []string, start int, end int) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "searchrawtransactions",
+		Params:  []interface{}{addresses, start, end},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetAddressTxIDs searches for all txid associated with an address.
+//   - Most recient last
+//   - Only confirmed
+func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) ([]string, error) {
+	out := []string{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddressesStartEndRequest(addresses, start, end)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetAddressDeltas searches for all inputs, outputs and top level detail for transactions
+//   - Only confirmed
+//   - Negative "satoshis" = Vin
+//   - Positve "satoshis"  = Vout
+// {
+//   "satoshis": 30000,
+//   "txid": "20fb69a94413637cb50f65e473f91d2599a04d5a0bf9bf6a5e9e843df2710ea4",
+//   "index": 0,
+//   "blockindex": 165,
+//   "height": 228208,
+//   "address": "12cbQLTFMXRnSzktFkuoG3eHoMeFtpTu3S"
+// }
+func (as *AddrServer) GetAddressDeltas(addresses []string, start, end int) (GetAddressDeltasResponse, error) {
+	out := GetAddressDeltasResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddressesStartEndRequest(addresses, start, end)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetAddressDeltasResponse is the response struct for GetAddressDeltas
+type GetAddressDeltasResponse []struct {
+	Satoshis   int    `json:"satoshis"`
+	Txid       string `json:"txid"`
+	Index      int    `json:"index"`
+	Blockindex int    `json:"blockindex"`
+	Height     int    `json:"height"`
+	Address    string `json:"address"`
+}
+
+func newBitcoreAddessesRequest(addresses []string) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "searchrawtransactions",
+		Params:  []interface{}{addresses},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetAddressBalance returns the balance of confirmed transactions
+func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceResult, error) {
+	out := GetAddressBalanceResult{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetAddressBalanceResult is the response struct for GetAddressBalance
+type GetAddressBalanceResult struct {
+	Balance  int `json:"balance"`
+	Received int `json:"received"`
+}
+
+// GetAddressUTXOs returns the list of UTXO for an address sorted by block height
+func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsResponse, error) {
+	out := GetAddressUTXOsResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetAddressUTXOsResponse is the response struct for GetAddressUTXOs
+type GetAddressUTXOsResponse []struct {
+	Address     string `json:"address"`
+	Txid        string `json:"txid"`
+	OutputIndex int    `json:"outputIndex"`
+	Script      string `json:"script"`
+	Satoshis    int    `json:"satoshis"`
+	Height      int    `json:"height"`
+}
+
+// GetAddressMempool returns GetAddressDeltas but for the mempool:
+//   - Only Mempool
+//   - Negative "satoshis" = Vin
+//   - Positve "satoshis"  = Vout
+// {
+// 	"address": "3M366gYcKHbvun6YYF1Xim6sDeT5JSTVUy",
+// 	"txid": "ff21363aa331f2dc7bbf70acc7eefb7a4080645d30b4e319ca190ceaecbcce42",
+// 	"index": 0,
+// 	"satoshis": -10684303,
+// 	"timestamp": 1463602662,
+// 	"prevtxid": "0c15f067d6b082f4dcc2740f039d33bb4f47b23c79ceae880ca759268389f82a",
+// 	"prevout": 1
+// },
+func (as *AddrServer) GetAddressMempool(addresses []string) (GetAddressMempoolResponse, error) {
+	out := GetAddressMempoolResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetAddressMempoolResponse is the response struct for GetAddressMempool
+type GetAddressMempoolResponse []struct {
+	Address   string `json:"address"`
+	Txid      string `json:"txid"`
+	Index     int    `json:"index"`
+	Satoshis  int    `json:"satoshis"`
+	Timestamp int    `json:"timestamp"`
+	Prevtxid  string `json:"prevtxid,omitempty"`
+	Prevout   int    `json:"prevout,omitempty"`
+}
+
+func newBitcoreStartEndRequest(start, end int) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "searchrawtransactions",
+		Params:  []interface{}{start, end},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetBlockHashes returns blockhashes between two unix epoch timestamps
+func (as *AddrServer) GetBlockHashes(start, end int) ([]string, error) {
+	out := []string{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreStartEndRequest(start, end)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+func newBitcoreTxWithIndexRequest(txid string, index int) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "searchrawtransactions",
+		Params:  []interface{}{txid, index},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetSpentInfo returns the txid and input index that has spent the output
+func (as *AddrServer) GetSpentInfo(txid string, index int) (GetSpentInfoResponse, error) {
+	out := GetSpentInfoResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreTxWithIndexRequest(txid, index)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetSpentInfoResponse is response struct for GetSpentInfo
+type GetSpentInfoResponse struct {
+	Txid   string `json:"txid"`
+	Index  int    `json:"index"`
+	Height int    `json:"height"`
+}
+
+func newBitcoreRawTxRequest(addresses string) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "searchrawtransactions",
+		Params:  []interface{}{addresses, 1},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetRawTransaction verbose result will now has some additional fields added when spentindex is enabled.
+// The vin values will include value (a float in BTC) and valueSat (an integer in satoshis) with the
+// previous output value as well as the  address. The vout values will also now include a valueSat
+// (an integer in satoshis). It will also include  spentTxId, spentIndex and spentHeight that corresponds
+// with the input that spent the output.
+func (as *AddrServer) GetRawTransaction(addr string) (GetRawTransactionResponse, error) {
+	out := GetRawTransactionResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreRawTxRequest(addr)))
+	if err != nil {
+		return out, err
+	}
+	req.Header.Set("Content-Type", "text/plain")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return out, err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(body, &out)
+	if err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// GetRawTransactionResponse is the response struct for GetRawTransaction
+type GetRawTransactionResponse struct {
+	Hex           string    `json:"hex"`
+	Txid          string    `json:"txid"`
+	Size          int       `json:"size"`
+	Version       int       `json:"version"`
+	Locktime      int       `json:"locktime"`
+	Vin           []VinIns  `json:"vin"`
+	Vout          []VoutIns `json:"vout"`
+	Blockhash     string    `json:"blockhash"`
+	Height        int       `json:"height"`
+	Confirmations int       `json:"confirmations"`
+	Time          int       `json:"time"`
+	Blocktime     int       `json:"blocktime"`
+}
+
+// VinIns is the bitcore representation of a Vin
+type VinIns struct {
+	Txid      string    `json:"txid"`
+	Vout      int       `json:"vout"`
+	ScriptSig ScriptSig `json:"scriptSig"`
+	Value     float64   `json:"value"`
+	ValueSat  int       `json:"valueSat"`
+	Address   string    `json:"address"`
+	Sequence  int64     `json:"sequence"`
+}
+
+// ScriptPubKeyIns is the bitcore representation of a ScriptPubKey
+type ScriptPubKeyIns struct {
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex"`
+	ReqSigs   int      `json:"reqSigs"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses"`
+}
+
+// VoutIns is the bitcore representation of a Vout
+type VoutIns struct {
+	Value        float64         `json:"value"`
+	ValueSat     int             `json:"valueSat"`
+	N            int             `json:"n"`
+	ScriptPubKey ScriptPubKeyIns `json:"scriptPubKey"`
+	SpentTxID    string          `json:"spentTxId,omitempty"`
+	SpentIndex   int             `json:"spentIndex,omitempty"`
+	SpentHeight  int             `json:"spentHeight,omitempty"`
 }
