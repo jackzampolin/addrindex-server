@@ -139,16 +139,6 @@ type GetAddressDeltasResponse struct {
 	ID     interface{}    `json:"id"`
 }
 
-// AddressDelta represents a balance change for an address
-type AddressDelta struct {
-	Satoshis   int    `json:"satoshis"`
-	Txid       string `json:"txid"`
-	Index      int    `json:"index"`
-	Blockindex int    `json:"blockindex"`
-	Height     int    `json:"height"`
-	Address    string `json:"address"`
-}
-
 func getAddressBalanceRequest(addresses []string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
@@ -197,12 +187,6 @@ type GetAddressBalanceResult struct {
 	ID     interface{}    `json:"id"`
 }
 
-// AddressBalance is the balance of an address
-type AddressBalance struct {
-	Balance  int `json:"balance"`
-	Received int `json:"received"`
-}
-
 func getAddressUTXORequest(addresses []string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
@@ -249,16 +233,6 @@ type GetAddressUTXOsResponse struct {
 	Result []UTXOIns   `json:"result"`
 	Error  interface{} `json:"error"`
 	ID     interface{} `json:"id"`
-}
-
-// UTXOIns is an insight representation of a UTXO
-type UTXOIns struct {
-	Address     string `json:"address"`
-	Txid        string `json:"txid"`
-	OutputIndex int    `json:"outputIndex"`
-	Script      string `json:"script"`
-	Satoshis    int    `json:"satoshis"`
-	Height      int    `json:"height"`
 }
 
 func getAddressMempoolRequest(addresses []string) []byte {
@@ -318,19 +292,6 @@ type GetAddressMempoolResponse struct {
 	Result []AddrMempoolTransaction `json:"result"`
 	Error  interface{}              `json:"error"`
 	ID     interface{}              `json:"id"`
-}
-
-// AddrMempoolTransaction represents a transaction in the mempool
-// prevtxid and prevout that can be used for marking utxos as spent
-// Instead of height there is timestamp that is the time the transaction entered the mempool
-type AddrMempoolTransaction []struct {
-	Address   string `json:"address"`
-	Txid      string `json:"txid"`
-	Index     int    `json:"index"`
-	Satoshis  int    `json:"satoshis"`
-	Timestamp int    `json:"timestamp"`
-	Prevtxid  string `json:"prevtxid,omitempty"`
-	Prevout   int    `json:"prevout,omitempty"`
 }
 
 func getBlockHashesRequest(start, end int) []byte {
@@ -427,13 +388,6 @@ type GetSpentInfoResponse struct {
 	ID     interface{} `json:"id"`
 }
 
-// SpentInfo contains data about spent transaction outputs
-type SpentInfo struct {
-	Txid   string `json:"txid"`
-	Index  int    `json:"index"`
-	Height int    `json:"height"`
-}
-
 // getRawTransactionRequest formats the json payload for the getrawtransaction RPC
 func getRawTransactionRequest(addresses string) []byte {
 	srtr := BitcoreRequest{
@@ -484,20 +438,4 @@ type GetRawTransactionResponse struct {
 	Result TransactionIns `json:"result"`
 	Error  interface{}    `json:"error"`
 	ID     interface{}    `json:"id"`
-}
-
-// TransactionIns is the response struct for GetRawTransaction
-type TransactionIns struct {
-	Hex           string    `json:"hex"`
-	Txid          string    `json:"txid"`
-	Size          int       `json:"size"`
-	Version       int       `json:"version"`
-	Locktime      int       `json:"locktime"`
-	Vin           []VinIns  `json:"vin"`
-	Vout          []VoutIns `json:"vout"`
-	Blockhash     string    `json:"blockhash"`
-	Height        int       `json:"height"`
-	Confirmations int       `json:"confirmations"`
-	Time          int       `json:"time"`
-	Blocktime     int       `json:"blocktime"`
 }
