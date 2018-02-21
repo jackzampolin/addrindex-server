@@ -62,7 +62,7 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 
 	// If there are no mempool transactions then just return the historical
 	if len(mptxns.Result) < 1 {
-		var o UTXOInsOuts
+		o := UTXOInsOuts{}
 		for _, utxo := range txns.Result {
 			o = append(o, utxo.Enrich(info.Blocks))
 		}
@@ -123,6 +123,12 @@ func (as *AddrServer) HandleAddrUnconfirmedBalance(w http.ResponseWriter, r *htt
 
 	out, _ := json.Marshal(unconfirmed)
 	w.Write(out)
+}
+
+// HandleGetBlocks handles the /blocks route
+func (as *AddrServer) HandleGetBlocks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(as.Blocks.JSON())
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route
@@ -341,8 +347,8 @@ func (as *AddrServer) HandleGetBlockHash(w http.ResponseWriter, r *http.Request)
 	w.Write(bh)
 }
 
-// GetSync handles the /sync route
-func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
+// HandleGetSync handles the /sync route
+func (as *AddrServer) HandleGetSync(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	chainInfo, err := as.Client.GetBlockChainInfo()
@@ -355,8 +361,8 @@ func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
 	w.Write(NewSyncResponse(chainInfo))
 }
 
-// GetStatus handles the /status route
-func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
+// HandleGetStatus handles the /status route
+func (as *AddrServer) HandleGetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	query := r.URL.Query()
 	method := "getInfo"
@@ -394,8 +400,8 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetTransactions handles the /txs route
-func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
+// HandleGetTransactions handles the /txs route
+func (as *AddrServer) HandleGetTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
@@ -539,28 +545,10 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Write(NewPostError("Need to pass ?block=BLOCKHASH or ?address=ADDR", fmt.Errorf("")))
 }
 
-// GetVersion handles the /version route
-func (as *AddrServer) GetVersion(w http.ResponseWriter, r *http.Request) {
+// HandleGetVersion handles the /version route
+func (as *AddrServer) HandleGetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(as.version())
 }
-
-// /insight-api/version
-// GET /version
-// router.HandleFunc("/version", as.GetVersion).Methods("GET")
-
-// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
-
-// NOTE: This pulls data from outside price APIs. Might want to implement a couple
-// NOTE: Lets cache this data server side the same way we are doing with the block index
-// GET /currency
-// router.HandleFunc("/currency", as.GetCurrency).Methods("GET")
-// curl https://www.bitstamp.net/api/v2/ticker/btcusd/
-// curl https://blockchain.info/ticker
-// curl https://api.coindesk.com/v1/bpi/currentprice/usd.json
-
-// /insight-api/blocks?limit=3&blockDate=2016-04-22
-// NOTE: We are going to need to keep a cache of this data on the server
-// router.HandleFunc("/blocks", as.HandleGetBlocksByDate).Methods("GET")
 
 // TxPost models a post request for sending a transaction
 type TxPost struct {
@@ -641,4 +629,9 @@ func NewSyncResponse(bc *btcjson.GetBlockChainInfoResult) []byte {
 		Type:             "addrindex-server",
 	})
 	return out
+}
+
+// HandleGetCurrency handles the /currency route
+func (as *AddrServer) HandleGetCurrency(w http.ResponseWriter, r *http.Request) {
+	w.Write(as.CurrencyData.JSON())
 }

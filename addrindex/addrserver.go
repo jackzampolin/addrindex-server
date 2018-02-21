@@ -17,7 +17,7 @@ package addrindex
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
+	"time"
 
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/gorilla/mux"
@@ -31,9 +31,32 @@ type AddrServer struct {
 	DisableTLS   bool
 	Port         int
 	Client       *rpcclient.Client
-	Transactions int
+	Timeout      int
+	CurrencyData *CurrencyData
+	Blocks       *Blocks
 
 	versionData versionData
+}
+
+func (as *AddrServer) updateCurrency() {
+	ticker := time.NewTicker(time.Second * time.Duration(as.Timeout))
+	for _ = range ticker.C {
+		bn := binancePrice()
+		bi := blockchainInfoPrice()
+		cb := coinbasePrice()
+		as.CurrencyData.Lock()
+		as.CurrencyData.Binance = bn
+		as.CurrencyData.BlockchainInfo = bi
+		as.CurrencyData.Coinbase = cb
+		as.CurrencyData.Unlock()
+	}
+}
+
+func (as *AddrServer) updateBlocks() {
+	ticker := time.NewTicker(time.Second * time.Duration(as.Timeout))
+	for _ = range ticker.C {
+		as.RefreshBlocks()
+	}
 }
 
 func (as *AddrServer) version() []byte {
@@ -49,43 +72,42 @@ type versionData struct {
 
 // AddrServerConfig configures the AddrServer
 type AddrServerConfig struct {
-	Host         string `json:"host"`
-	Usr          string `json:"usr"`
-	Pass         string `json:"pass"`
-	SSL          bool   `json:"ssl"`
-	Port         int    `json:"port"`
-	Transactions int    `json:"transactions"`
-	Version      string
-	Commit       string
-	Branch       string
-}
-
-type CurrencyData struct {
-	Binance float64
-
-	sync.Mutex
+	Host    string `json:"host"`
+	Usr     string `json:"usr"`
+	Pass    string `json:"pass"`
+	SSL     bool   `json:"ssl"`
+	Port    int    `json:"port"`
+	Timeout int    `json:"timeout"`
+	Version string
+	Commit  string
+	Branch  string
 }
 
 // NewAddrServer returns a new AddrServer instance
 func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 	out := &AddrServer{
-		Host:         cfg.Host,
-		User:         cfg.Usr,
-		Pass:         cfg.Pass,
-		DisableTLS:   !cfg.SSL,
-		Port:         cfg.Port,
-		Transactions: cfg.Transactions,
+		Host:       cfg.Host,
+		User:       cfg.Usr,
+		Pass:       cfg.Pass,
+		DisableTLS: !cfg.SSL,
+		Port:       cfg.Port,
+		Timeout:    cfg.Timeout,
 		versionData: versionData{
 			Version: cfg.Version,
 			Commit:  cfg.Commit,
 			Branch:  cfg.Branch,
 		},
+		Blocks:       &Blocks{},
+		CurrencyData: NewCurrencyData(),
 	}
 	client, err := rpcclient.New(out.connCfg(), nil)
 	if err != nil {
 		panic(err)
 	}
 	out.Client = client
+	out.RefreshBlocks()
+	go out.updateCurrency()
+	go out.updateBlocks()
 	return out
 }
 
@@ -115,27 +137,18 @@ func (as *AddrServer) Router() *mux.Router {
 	router.HandleFunc("/addr/{addr}/balance", as.HandleAddrBalance).Methods("GET")
 	router.HandleFunc("/addr/{addr}/totalReceived", as.HandleAddrRecieved).Methods("GET")
 	router.HandleFunc("/addr/{addr}/totalSent", as.HandleAddrSent).Methods("GET")
-	router.HandleFunc("/tx/{txid}", as.HandleTxGet).Methods("GET")
-	router.HandleFunc("/rawtx/{txid}", as.HandleRawTxGet).Methods("GET")
-	router.HandleFunc("/messages/verify", as.HandleMessagesVerify).Methods("POST")
-	router.HandleFunc("/tx/send", as.HandleTransactionSend).Methods("POST")
-	router.HandleFunc("/block/{blockHash}", as.HandleGetBlock).Methods("GET")
-	router.HandleFunc("/block-index/{height}", as.HandleGetBlockHash).Methods("GET")
-	router.HandleFunc("/status", as.GetStatus).Methods("GET")
-	router.HandleFunc("/sync", as.GetSync).Methods("GET")
-	router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
-	router.HandleFunc("/version", as.GetVersion).Methods("GET")
-
-	// NOTE: This route only returns the satoshi amount of confirmed transactions
 	router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmedBalance).Methods("GET")
-
-	// /insight-api/blocks?limit=3&blockDate=2016-04-22
-	// NOTE: this should fetch the last n blocks
-	// router.HandleFunc("/blocks", as.HandleGetBlocks).Methods("GET")
-
-	// NOTE: This pulls data from outside price APIs. Might want to implement a couple
-	// GET /currency
-	// router.HandleFunc("/currency", as.GetCurrency).Methods("GET")
-
+	router.HandleFunc("/tx/{txid}", as.HandleTxGet).Methods("GET")
+	router.HandleFunc("/txs", as.HandleGetTransactions).Methods("GET")
+	router.HandleFunc("/rawtx/{txid}", as.HandleRawTxGet).Methods("GET")
+	router.HandleFunc("/tx/send", as.HandleTransactionSend).Methods("POST")
+	router.HandleFunc("/messages/verify", as.HandleMessagesVerify).Methods("POST")
+	router.HandleFunc("/block/{blockHash}", as.HandleGetBlock).Methods("GET")
+	router.HandleFunc("/blocks", as.HandleGetBlocks).Methods("GET")
+	router.HandleFunc("/block-index/{height}", as.HandleGetBlockHash).Methods("GET")
+	router.HandleFunc("/status", as.HandleGetStatus).Methods("GET")
+	router.HandleFunc("/sync", as.HandleGetSync).Methods("GET")
+	router.HandleFunc("/version", as.HandleGetVersion).Methods("GET")
+	router.HandleFunc("/currency", as.HandleGetCurrency).Methods("GET")
 	return router
 }

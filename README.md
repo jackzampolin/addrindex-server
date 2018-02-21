@@ -13,9 +13,8 @@ pass: password
 ssl: false
 port: 18332
 
-# The number of transactions to return with each request
-# This affects the /addr/ routes and no other ones
-transactions: 50
+# Timeout for refreshing block and currency price data
+timeout: 300
 ```
 
 ### Build
