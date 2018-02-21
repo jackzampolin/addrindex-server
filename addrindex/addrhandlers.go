@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/btcsuite/btcd/btcjson"
@@ -30,56 +31,6 @@ import (
 
 // BlockstackStartBlock represents the point on the bitcoin blockchain where blockstack started
 const BlockstackStartBlock = 373601
-
-// HandleTest handles the test route
-// func (as *AddrServer) HandleTest(w http.ResponseWriter, r *http.Request) {
-// 	w.Header().Set("Content-Type", "application/json")
-// 	addr := mux.Vars(r)["addr"]
-// 	page := 0
-//
-// 	// Fetch Block Height
-// 	info, err := as.Client.GetInfo()
-// 	if err != nil {
-// 		w.WriteHeader(400)
-// 		w.Write(NewPostError("failed to getInfo", err))
-// 		return
-// 	}
-//
-// 	// paginate through transactions
-// 	txns, err := as.GetAddressTxIDs([]string{addr}, BlockstackStartBlock, int(info.Blocks))
-// 	if err != nil {
-// 		w.WriteHeader(400)
-// 		w.Write(NewPostError("error fetching page of transactions for address", err))
-// 		return
-// 	}
-//
-// 	var retTxns []string
-// 	var out []TransactionIns
-//
-// 	// Pull off a page of transactions
-// 	if len(txns.Result) < 10 {
-// 		retTxns = txns.Result
-// 	} else if len(txns.Result) > ((page + 1) * 10) {
-// 		retTxns = []string{}
-// 	} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
-// 		retTxns = txns.Result[page*10:]
-// 	} else {
-// 		retTxns = txns.Result[page*10 : (page+1)*10]
-// 	}
-//
-// 	for _, txid := range retTxns {
-// 		tx, err := as.GetRawTransaction(txid)
-// 		if err != nil {
-// 			w.WriteHeader(400)
-// 			w.Write(NewPostError("error fetching page of transactions for address", err))
-// 			return
-// 		}
-// 		out = append(out, tx.Result)
-// 	}
-//
-// 	o, _ := json.Marshal(out)
-// 	w.Write(o)
-// }
 
 // HandleAddrUTXO handles the /addr/<addr>/utxo route
 func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
@@ -108,23 +59,19 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 		w.Write(NewPostError("error fetching mempool transactions for address", err))
 	}
 
-	// mpo, _ := json.Marshal(mptxns)
-	// fmt.Println(string(mpo))
-	// txnso, _ := json.Marshal(txns)
-	// fmt.Println("********************************************************************")
-	// fmt.Println(string(txnso))
-
 	// If there are no mempool transactions then just return the historical
 	if len(mptxns.Result) < 1 {
-		for _, tx := range txns.Result {
-			tx.Enrich(int(info.Blocks))
+		var o UTXOInsOuts
+		for _, utxo := range txns.Result {
+			o = append(o, utxo.Enrich(info.Blocks))
 		}
-		out, _ := json.Marshal(txns.Result)
+		sort.Sort(o)
+		out, _ := json.Marshal(o)
 		w.Write(out)
 		return
 	}
 
-	var out []UTXOIns
+	var out UTXOInsOuts
 	var excl []string
 	for _, mptx := range mptxns.Result {
 		if mptx.Prevtxid != "" {
@@ -133,6 +80,7 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 					excl = append(excl, tx.Txid)
 				}
 			}
+			continue
 		}
 		out = append(out, mptx.UTXO())
 	}
@@ -145,11 +93,11 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !spent {
-			tx.Enrich(int(info.Blocks))
-			out = append(out, tx)
+			out = append(out, tx.Enrich(info.Blocks))
 		}
 	}
 
+	sort.Sort(out)
 	o, _ := json.Marshal(out)
 	w.Write(o)
 }

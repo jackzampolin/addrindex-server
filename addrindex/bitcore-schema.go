@@ -66,13 +66,15 @@ type AddrMempoolTransaction struct {
 	Prevout   int    `json:"prevout,omitempty"`
 }
 
-func (amp AddrMempoolTransaction) UTXO() UTXOIns {
-	return UTXOIns{
+// UTXO is a thing
+func (amp AddrMempoolTransaction) UTXO() UTXOInsOut {
+	return UTXOInsOut{
 		Address:       amp.Address,
 		Txid:          amp.Txid,
 		OutputIndex:   amp.Index,
 		Satoshis:      amp.Satoshis,
 		Amount:        float64(amp.Satoshis) / 100000000,
+		Timestamp:     amp.Timestamp,
 		Confirmations: 0,
 	}
 }
@@ -86,12 +88,49 @@ type UTXOIns struct {
 	Satoshis      int     `json:"satoshis,omitempty"`
 	Amount        float64 `json:"amount,omitempty"`
 	Height        int     `json:"height,omitempty"`
+	Timestamp     int     `json:"timestamp,omitempty"`
 	Confirmations int     `json:"confirmations"`
 }
 
-func (utxo UTXOIns) Enrich(blockHeight int) {
-	utxo.Confirmations = blockHeight - utxo.Height
-	utxo.Amount = float64(utxo.Satoshis) / 100000000
+// UTXOInsOuts for sorting
+type UTXOInsOuts []UTXOInsOut
+
+func (s UTXOInsOuts) Len() int {
+	return len(s)
+}
+func (s UTXOInsOuts) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s UTXOInsOuts) Less(i, j int) bool {
+	return s[i].Confirmations < s[j].Confirmations
+}
+
+// UTXOInsOut Output representation
+type UTXOInsOut struct {
+	Address       string  `json:"address"`
+	Txid          string  `json:"txid"`
+	OutputIndex   int     `json:"vout"`
+	Script        string  `json:"script,omitempty"`
+	Satoshis      int     `json:"satoshis,omitempty"`
+	Amount        float64 `json:"amount,omitempty"`
+	Height        int     `json:"height,omitempty"`
+	Timestamp     int     `json:"ts,omitempty"`
+	Confirmations int     `json:"confirmations"`
+}
+
+// Enrich is enriching
+func (utxo UTXOIns) Enrich(blockHeight int32) UTXOInsOut {
+	return UTXOInsOut{
+		Address:       utxo.Address,
+		Txid:          utxo.Txid,
+		OutputIndex:   utxo.OutputIndex,
+		Script:        utxo.Script,
+		Satoshis:      utxo.Satoshis,
+		Amount:        float64(utxo.Satoshis) / 100000000,
+		Height:        utxo.Height,
+		Confirmations: int(blockHeight) - utxo.Height + 1,
+		Timestamp:     utxo.Timestamp,
+	}
 }
 
 // SpentInfo contains data about spent transaction outputs
