@@ -28,21 +28,73 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// BlockstackStartBlock represents the point on the bitcoin blockchain where blockstack started
+const BlockstackStartBlock = 373601
+
+// HandleTest handles the test route
+func (as *AddrServer) HandleTest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	addr := mux.Vars(r)["addr"]
+	page := 0
+
+	// Fetch Block Height
+	info, err := as.Client.GetInfo()
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("failed to getInfo", err))
+		return
+	}
+
+	// paginate through transactions
+	txns, err := as.GetAddressTxIDs([]string{addr}, BlockstackStartBlock, int(info.Blocks))
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("error fetching page of transactions for address", err))
+		return
+	}
+
+	var retTxns []string
+	var out []GetRawTransactionResponse
+
+	// Pull off a page of transactions
+	if len(txns.Result) < 10 {
+		retTxns = txns.Result
+	} else if len(txns.Result) > ((page + 1) * 10) {
+		retTxns = []string{}
+	} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
+		retTxns = txns.Result[page*10:]
+	} else {
+		retTxns = txns.Result[page*10 : (page+1)*10]
+	}
+
+	for _, txid := range retTxns {
+		tx, err := as.GetRawTransaction(txid)
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write(NewPostError("error fetching page of transactions for address", err))
+			return
+		}
+		out = append(out, tx.Result)
+	}
+
+	o, _ := json.Marshal(out)
+	w.Write(o)
+}
+
 // HandleAddrUTXO handles the /addr/<addr>/utxo route
 func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressUTXOs([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	utxo := txns.UTXO(addr)
-	w.Write(utxo.JSON())
+	out, _ := json.Marshal(txns.Result)
+	w.Write(out)
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route
@@ -51,14 +103,14 @@ func (as *AddrServer) HandleAddrBalance(w http.ResponseWriter, r *http.Request) 
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-	utxo := txns.UTXO(addr)
-	w.Write(utxo.Balance())
+	out, _ := json.Marshal(txns.Result.Balance)
+	w.Write(out)
 }
 
 // HandleAddrRecieved handles the /addr/<addr>/totalReceived route
@@ -67,14 +119,14 @@ func (as *AddrServer) HandleAddrRecieved(w http.ResponseWriter, r *http.Request)
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	w.Write(txns.Received(addr))
+	out, _ := json.Marshal(txns.Result.Received)
+	w.Write(out)
 }
 
 // HandleAddrSent handles the /addr/<addr>/totalSent route
@@ -83,14 +135,14 @@ func (as *AddrServer) HandleAddrSent(w http.ResponseWriter, r *http.Request) {
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	w.Write(txns.Sent(addr))
+	out, _ := json.Marshal(txns.Result.Received - txns.Result.Balance)
+	w.Write(out)
 }
 
 // HandleTxGet handles the /tx/<txid> route
@@ -98,53 +150,34 @@ func (as *AddrServer) HandleTxGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	txid := mux.Vars(r)["txid"]
 
-	// Make the chainhash for fetching data
-	hash, err := chainhash.NewHashFromStr(txid)
+	// paginate through transactions
+	txns, err := as.GetRawTransaction(txid)
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write(NewPostError("error parsing txhash", err))
+		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	// fetch transaction details
-	raw, err := as.Client.GetRawTransactionVerbose(hash)
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("error fetching transaction details", err))
-		return
-	}
-
-	txn, _ := json.Marshal(raw)
-	w.Write(txn)
+	out, _ := json.Marshal(txns.Result)
+	w.Write(out)
 }
 
 // HandleRawTxGet handles the /rawtx/<txid> route
 func (as *AddrServer) HandleRawTxGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	txid := mux.Vars(r)["txid"]
+	addr := mux.Vars(r)["txid"]
 
-	// Make the chainhash for fetching data
-	hash, err := chainhash.NewHashFromStr(txid)
+	// paginate through transactions
+	txns, err := as.GetRawTransaction(addr)
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write(NewPostError("error parsing txhash", err))
+		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	// fetch transaction details
-	raw, err := as.Client.GetRawTransactionVerbose(hash)
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("error fetching transaction details", err))
-		return
-	}
-
-	txn, _ := json.Marshal(map[string]string{"rawtx": raw.Hex})
-	w.Write(txn)
+	out, _ := json.Marshal(map[string]string{"rawtx": txns.Result.Hex})
+	w.Write(out)
 }
 
 // HandleTransactionSend handles the /tx/send route
-// TODO: Test this somehow?
 func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var tx TxPost
@@ -368,15 +401,48 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if address != "" {
-		searchtxns, err := as.SearchRawTransactions(address, (int(page) * 10), 10)
+		// Fetch Block Height
+		info, err := as.Client.GetInfo()
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write(NewPostError("failed to fetch address transactions", err))
+			w.Write(NewPostError("failed to getInfo", err))
 			return
 		}
 
-		txns, _ := json.Marshal(searchtxns.Result)
-		w.Write(txns)
+		// paginate through transactions
+		txns, err := as.GetAddressTxIDs([]string{address}, BlockstackStartBlock, int(info.Blocks))
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write(NewPostError("error fetching page of transactions for address", err))
+			return
+		}
+
+		var retTxns []string
+		var out []GetRawTransactionResponse
+
+		// Pull off a page of transactions
+		if len(txns.Result) < 10 {
+			retTxns = txns.Result
+		} else if len(txns.Result) > ((page + 1) * 10) {
+			retTxns = []string{}
+		} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
+			retTxns = txns.Result[page*10:]
+		} else {
+			retTxns = txns.Result[page*10 : (page+1)*10]
+		}
+
+		for _, txid := range retTxns {
+			tx, err := as.GetRawTransaction(txid)
+			if err != nil {
+				w.WriteHeader(400)
+				w.Write(NewPostError("error fetching page of transactions for address", err))
+				return
+			}
+			out = append(out, tx.Result)
+		}
+
+		o, _ := json.Marshal(out)
+		w.Write(o)
 		return
 	}
 

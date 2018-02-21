@@ -1,4 +1,4 @@
-host: 104.198.100.79:8332
+host: 35.185.104.76:8332
 usr: blockstack
 pass: blockstacksystem
 ssl: false

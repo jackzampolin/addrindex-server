@@ -282,12 +282,36 @@ func newBitcoreAddressesStartEndRequest(addresses []string, start int, end int) 
 	return out
 }
 
+// GetAddressTxIDsResultWrapper wraps the return
+type GetAddressTxIDsResultWrapper struct {
+	Result []string    `json:"result"`
+	Error  interface{} `json:"error"`
+	ID     interface{} `json:"id"`
+}
+
+func newGetAddressTxIDsRequest(addresses []string, start int, end int) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "getaddresstxids",
+		Params: []interface{}{map[string]interface{}{
+			"addresses": addresses,
+			"start":     start,
+			"end":       end,
+		}},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 // GetAddressTxIDs searches for all txid associated with an address.
 //   - Most recient last
 //   - Only confirmed
-func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) ([]string, error) {
-	out := []string{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddressesStartEndRequest(addresses, start, end)))
+func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) (GetAddressTxIDsResultWrapper, error) {
+	out := GetAddressTxIDsResultWrapper{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddressTxIDsRequest(addresses, start, end)))
 	if err != nil {
 		return out, err
 	}
@@ -372,10 +396,30 @@ func newBitcoreAddessesRequest(addresses []string) []byte {
 	return out
 }
 
+func newGetAddessesBalanceRequest(addresses []string) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "getaddressbalance",
+		Params:  []interface{}{map[string][]string{"addresses": addresses}},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetAddressBalanceResultWrapper wraps the return
+type GetAddressBalanceResultWrapper struct {
+	Result GetAddressBalanceResult `json:"result"`
+	Error  interface{}             `json:"error"`
+	ID     interface{}             `json:"id"`
+}
+
 // GetAddressBalance returns the balance of confirmed transactions
-func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceResult, error) {
-	out := GetAddressBalanceResult{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceResultWrapper, error) {
+	out := GetAddressBalanceResultWrapper{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddessesBalanceRequest(addresses)))
 	if err != nil {
 		return out, err
 	}
@@ -392,6 +436,7 @@ func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceRe
 	if err != nil {
 		return out, err
 	}
+
 	err = json.Unmarshal(body, &out)
 	if err != nil {
 		return out, err
@@ -405,10 +450,30 @@ type GetAddressBalanceResult struct {
 	Received int `json:"received"`
 }
 
+func newGetAddressUTXOsRequest(addresses []string) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "getaddressutxos",
+		Params:  []interface{}{map[string][]string{"addresses": addresses}},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
+// GetAddressUTXOsResponseWrapper contains some error and ID fields
+type GetAddressUTXOsResponseWrapper struct {
+	Result GetAddressUTXOsResponse `json:"result"`
+	Error  interface{}             `json:"error"`
+	ID     interface{}             `json:"id"`
+}
+
 // GetAddressUTXOs returns the list of UTXO for an address sorted by block height
-func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsResponse, error) {
-	out := GetAddressUTXOsResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsResponseWrapper, error) {
+	out := GetAddressUTXOsResponseWrapper{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddressUTXOsRequest(addresses)))
 	if err != nil {
 		return out, err
 	}
@@ -425,6 +490,7 @@ func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsRespon
 	if err != nil {
 		return out, err
 	}
+
 	err = json.Unmarshal(body, &out)
 	if err != nil {
 		return out, err
@@ -582,7 +648,7 @@ type GetSpentInfoResponse struct {
 func newBitcoreRawTxRequest(addresses string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
+		Method:  "getrawtransaction",
 		Params:  []interface{}{addresses, 1},
 	}
 	out, err := json.Marshal(srtr)
@@ -592,14 +658,21 @@ func newBitcoreRawTxRequest(addresses string) []byte {
 	return out
 }
 
+// GetRawTransactionResponseWrapper facilitates return
+type GetRawTransactionResponseWrapper struct {
+	Result GetRawTransactionResponse `json:"result"`
+	Error  interface{}               `json:"error"`
+	ID     interface{}               `json:"id"`
+}
+
 // GetRawTransaction verbose result will now has some additional fields added when spentindex is enabled.
 // The vin values will include value (a float in BTC) and valueSat (an integer in satoshis) with the
 // previous output value as well as the  address. The vout values will also now include a valueSat
 // (an integer in satoshis). It will also include  spentTxId, spentIndex and spentHeight that corresponds
 // with the input that spent the output.
-func (as *AddrServer) GetRawTransaction(addr string) (GetRawTransactionResponse, error) {
-	out := GetRawTransactionResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreRawTxRequest(addr)))
+func (as *AddrServer) GetRawTransaction(txn string) (GetRawTransactionResponseWrapper, error) {
+	out := GetRawTransactionResponseWrapper{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreRawTxRequest(txn)))
 	if err != nil {
 		return out, err
 	}
