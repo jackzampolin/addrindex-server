@@ -17,6 +17,7 @@ package addrindex
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/gorilla/mux"
@@ -57,6 +58,12 @@ type AddrServerConfig struct {
 	Version      string
 	Commit       string
 	Branch       string
+}
+
+type CurrencyData struct {
+	Binance float64
+
+	sync.Mutex
 }
 
 // NewAddrServer returns a new AddrServer instance
@@ -119,9 +126,8 @@ func (as *AddrServer) Router() *mux.Router {
 	router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
 	router.HandleFunc("/version", as.GetVersion).Methods("GET")
 
-	// router.HandleFunc("/test/{addr}", as.HandleTest).Methods("GET")
-
-	// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
+	// NOTE: This route only returns the satoshi amount of confirmed transactions
+	router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmedBalance).Methods("GET")
 
 	// /insight-api/blocks?limit=3&blockDate=2016-04-22
 	// NOTE: this should fetch the last n blocks

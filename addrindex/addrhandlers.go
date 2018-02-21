@@ -57,6 +57,7 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching mempool transactions for address", err))
+		return
 	}
 
 	// If there are no mempool transactions then just return the historical
@@ -85,10 +86,14 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, toCheck := range check {
+		valid := true
 		for _, mptx := range mptxns.Result {
-			if !(mptx.Prevtxid == toCheck.Txid && toCheck.OutputIndex == mptx.Prevout) {
-				out = append(out, toCheck)
+			if mptx.Prevtxid == toCheck.Txid && toCheck.OutputIndex == mptx.Prevout {
+				valid = false
 			}
+		}
+		if valid {
+			out = append(out, toCheck)
 		}
 	}
 
@@ -96,6 +101,28 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	sort.Sort(out)
 	o, _ := json.Marshal(out)
 	w.Write(o)
+}
+
+// HandleAddrUnconfirmedBalance handles the /addr/<addr>/unconfirmedBalance route
+func (as *AddrServer) HandleAddrUnconfirmedBalance(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	addr := mux.Vars(r)["addr"]
+
+	mptxns, err := as.GetAddressMempool([]string{addr})
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("error fetching mempool transactions for address", err))
+		return
+	}
+
+	unconfirmed := 0
+
+	for _, mptx := range mptxns.Result {
+		unconfirmed += mptx.Satoshis
+	}
+
+	out, _ := json.Marshal(unconfirmed)
+	w.Write(out)
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route
