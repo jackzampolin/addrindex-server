@@ -63,7 +63,7 @@ type SpentInfo struct {
 // AddrMempoolTransaction represents a transaction in the mempool
 // prevtxid and prevout that can be used for marking utxos as spent
 // Instead of height there is timestamp that is the time the transaction entered the mempool
-type AddrMempoolTransaction []struct {
+type AddrMempoolTransaction struct {
 	Address   string `json:"address"`
 	Txid      string `json:"txid"`
 	Index     int    `json:"index"`

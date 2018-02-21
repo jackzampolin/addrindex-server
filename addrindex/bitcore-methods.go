@@ -297,7 +297,7 @@ type GetAddressMempoolResponse struct {
 func getBlockHashesRequest(start, end int) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
+		Method:  "getblockhashes",
 		Params:  []interface{}{start, end},
 	}
 	out, err := json.Marshal(srtr)
@@ -308,9 +308,9 @@ func getBlockHashesRequest(start, end int) []byte {
 }
 
 // GetBlockHashes returns blockhashes between two unix epoch timestamps (seconds)
-func (as *AddrServer) GetBlockHashes(start, end int) (GetBlockHashesResponse, error) {
+func (as *AddrServer) GetBlockHashes(end, start int) (GetBlockHashesResponse, error) {
 	out := GetBlockHashesResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getBlockHashesRequest(start, end)))
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getBlockHashesRequest(end, start)))
 	if err != nil {
 		return out, err
 	}
@@ -345,7 +345,7 @@ func getSpentInfoRequest(txid string, index int) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "getspentinfo",
-		Params:  []interface{}{map[string]interface{}{"tx": txid, "index": index}},
+		Params:  []interface{}{map[string]interface{}{"txid": txid, "index": index}},
 	}
 	out, err := json.Marshal(srtr)
 	if err != nil {
@@ -374,6 +374,7 @@ func (as *AddrServer) GetSpentInfo(txid string, index int) (GetSpentInfoResponse
 	if err != nil {
 		return out, err
 	}
+
 	err = json.Unmarshal(body, &out)
 	if err != nil {
 		return out, err

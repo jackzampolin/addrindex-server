@@ -32,54 +32,54 @@ import (
 const BlockstackStartBlock = 373601
 
 // HandleTest handles the test route
-func (as *AddrServer) HandleTest(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	addr := mux.Vars(r)["addr"]
-	page := 0
-
-	// Fetch Block Height
-	info, err := as.Client.GetInfo()
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("failed to getInfo", err))
-		return
-	}
-
-	// paginate through transactions
-	txns, err := as.GetAddressTxIDs([]string{addr}, BlockstackStartBlock, int(info.Blocks))
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("error fetching page of transactions for address", err))
-		return
-	}
-
-	var retTxns []string
-	var out []TransactionIns
-
-	// Pull off a page of transactions
-	if len(txns.Result) < 10 {
-		retTxns = txns.Result
-	} else if len(txns.Result) > ((page + 1) * 10) {
-		retTxns = []string{}
-	} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
-		retTxns = txns.Result[page*10:]
-	} else {
-		retTxns = txns.Result[page*10 : (page+1)*10]
-	}
-
-	for _, txid := range retTxns {
-		tx, err := as.GetRawTransaction(txid)
-		if err != nil {
-			w.WriteHeader(400)
-			w.Write(NewPostError("error fetching page of transactions for address", err))
-			return
-		}
-		out = append(out, tx.Result)
-	}
-
-	o, _ := json.Marshal(out)
-	w.Write(o)
-}
+// func (as *AddrServer) HandleTest(w http.ResponseWriter, r *http.Request) {
+// 	w.Header().Set("Content-Type", "application/json")
+// 	addr := mux.Vars(r)["addr"]
+// 	page := 0
+//
+// 	// Fetch Block Height
+// 	info, err := as.Client.GetInfo()
+// 	if err != nil {
+// 		w.WriteHeader(400)
+// 		w.Write(NewPostError("failed to getInfo", err))
+// 		return
+// 	}
+//
+// 	// paginate through transactions
+// 	txns, err := as.GetAddressTxIDs([]string{addr}, BlockstackStartBlock, int(info.Blocks))
+// 	if err != nil {
+// 		w.WriteHeader(400)
+// 		w.Write(NewPostError("error fetching page of transactions for address", err))
+// 		return
+// 	}
+//
+// 	var retTxns []string
+// 	var out []TransactionIns
+//
+// 	// Pull off a page of transactions
+// 	if len(txns.Result) < 10 {
+// 		retTxns = txns.Result
+// 	} else if len(txns.Result) > ((page + 1) * 10) {
+// 		retTxns = []string{}
+// 	} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
+// 		retTxns = txns.Result[page*10:]
+// 	} else {
+// 		retTxns = txns.Result[page*10 : (page+1)*10]
+// 	}
+//
+// 	for _, txid := range retTxns {
+// 		tx, err := as.GetRawTransaction(txid)
+// 		if err != nil {
+// 			w.WriteHeader(400)
+// 			w.Write(NewPostError("error fetching page of transactions for address", err))
+// 			return
+// 		}
+// 		out = append(out, tx.Result)
+// 	}
+//
+// 	o, _ := json.Marshal(out)
+// 	w.Write(o)
+// }
 
 // HandleAddrUTXO handles the /addr/<addr>/utxo route
 func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +178,7 @@ func (as *AddrServer) HandleRawTxGet(w http.ResponseWriter, r *http.Request) {
 }
 
 // HandleTransactionSend handles the /tx/send route
+// TODO: Write a test for this
 func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var tx TxPost
@@ -226,7 +227,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleMessagesVerify handles the /messages/verify route
-// TODO: Test this somehow?
+// TODO: Write a test for this
 func (as *AddrServer) HandleMessagesVerify(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var tx VerifyPost
