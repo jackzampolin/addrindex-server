@@ -50,7 +50,7 @@ var serveCmd = &cobra.Command{
 		router.HandleFunc("/sync", as.GetSync).Methods("GET")
 		router.HandleFunc("/txs", as.GetTransactions).Methods("GET")
 		router.HandleFunc("/version", as.GetVersion).Methods("GET")
-		router.HandleFunc("/test/{addr}", as.HandleTest).Methods("GET")
+		// router.HandleFunc("/test/{addr}", as.HandleTest).Methods("GET")
 
 		// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
 

@@ -17,279 +17,18 @@ package addrindex
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
 
-// SearchRawTransactions returns the result of a searchrawtransactions RPC call against the configured bitcoin node
-func (as *AddrServer) SearchRawTransactions(addr string, offset int, count int) (SearchRawTransactionsResult, error) {
-	out := SearchRawTransactionsResult{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newSearchRawTransactionRequest(addr, offset, count)))
-	if err != nil {
-		return out, err
-	}
-	req.Header.Set("Content-Type", "text/plain")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return out, err
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return out, err
-	}
-	err = json.Unmarshal(body, &out)
-	if err != nil {
-		return out, err
-	}
-	return out, nil
-}
-
+// BitcoreRequest represents a request to a bitcore node
 type BitcoreRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  string        `json:"method"`
 	Params  []interface{} `json:"params"`
 }
 
-func newSearchRawTransactionRequest(addr string, offset int, count int) []byte {
-	srtr := BitcoreRequest{
-		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
-		Params:  []interface{}{addr, 1, offset, count},
-	}
-	out, err := json.Marshal(srtr)
-	if err != nil {
-		panic(err)
-	}
-	return out
-}
-
-// UTXOs are a set of UTXO
-type UTXOs []UTXO
-
-// JSON returns the UTXO in a format for return to client
-func (utxos UTXOs) JSON() []byte {
-	utxo, err := json.Marshal(utxos)
-	if err != nil {
-		panic(err)
-	}
-	return utxo
-}
-
-// Balance returns the balance for a address
-func (utxos UTXOs) Balance() []byte {
-	var val int64
-	// var byt = []byte{}
-	for _, utxo := range utxos {
-		val += (utxo.Value)
-	}
-	return []byte(fmt.Sprintf("%v", val))
-}
-
-// UTXO models an unspent transaction output
-type UTXO struct {
-	TransactionHash string   `json:"transaction_hash"`
-	Outpoint        Outpoint `json:"outpoint"`
-	Value           int64    `json:"value"`
-	OutScript       string   `json:"out_script"`
-	Confirmations   int      `json:"confirmations"`
-}
-
-// Outpoint models the outpoint of a transaction
-type Outpoint struct {
-	Hash  string `json:"txid"`
-	Index int    `json:"vout"`
-}
-
-// NewUTXO takes the data from a transaction and creates a UTXO
-func newUTXO(txid string, conf int, vout Vout) UTXO {
-	return UTXO{
-		TransactionHash: txid,
-		Outpoint: Outpoint{
-			Hash:  txid,
-			Index: vout.N,
-		},
-		Value:         int64(vout.Value * 100000000),
-		OutScript:     vout.ScriptPubKey.Hex,
-		Confirmations: conf,
-	}
-}
-
-// UTXO returns the transaction outputs for a transaction for an address in a format for return
-func (txns Transactions) UTXO(addr string) UTXOs {
-	outputs := []UTXO{}
-	out := []UTXO{}
-
-	// First gather all the outputs from all the transactions that apply to the address
-	for _, tx := range txns {
-		for _, vout := range tx.Vout {
-			if vout.contains(addr) {
-				outputs = append(outputs, newUTXO(tx.Txid, tx.Confirmations, vout))
-			}
-		}
-	}
-
-	// Next, filter out spent outputs
-	for _, txo := range outputs {
-		unspent := true
-		for _, tx := range txns {
-			for _, vin := range tx.Vin {
-				if vin.Txid == txo.TransactionHash {
-					unspent = false
-				}
-			}
-		}
-		if unspent == true {
-			out = append(out, txo)
-		}
-	}
-	return out
-}
-
-func (vout Vout) contains(addr string) bool {
-	for _, ad := range vout.ScriptPubKey.Addresses {
-		if ad == addr {
-			return true
-		}
-	}
-	return false
-}
-
-// SearchRawTransactionsResult models the raw result from a SearchRawTransactions call
-type SearchRawTransactionsResult struct {
-	Result Transactions `json:"result"`
-	Error  interface{}  `json:"error"`
-	ID     interface{}  `json:"id"`
-}
-
-// Transactions is a group of Transaction
-type Transactions []Transaction
-
-// Received calculates the recieved btc by the address
-func (txns Transactions) Received(addr string) []byte {
-	var val int64
-	for _, txn := range txns {
-		for _, vout := range txn.Vout {
-			if vout.contains(addr) {
-				val += int64(vout.Value * 100000000)
-			}
-		}
-	}
-	return []byte(fmt.Sprintf("%v", val))
-}
-
-// Sent calculates the sent btc by the address
-func (txns Transactions) Sent(addr string) []byte {
-	var val int64
-	outputs := []UTXO{}
-
-	// First gather all the outputs from all the transactions that apply to the address
-	for _, tx := range txns {
-		for _, vout := range tx.Vout {
-			if vout.contains(addr) {
-				outputs = append(outputs, newUTXO(tx.Txid, tx.Confirmations, vout))
-			}
-		}
-	}
-
-	// Next, filter out spent outputs
-	for _, txo := range outputs {
-		unspent := true
-		for _, tx := range txns {
-			for _, vin := range tx.Vin {
-				if vin.Txid == txo.TransactionHash {
-					unspent = false
-				}
-			}
-		}
-		if unspent == false {
-			val += txo.Value
-		}
-	}
-	return []byte(fmt.Sprintf("%v", val))
-}
-
-// Transaction models a bitcoin tansaction
-type Transaction struct {
-	Txid          string `json:"txid"`
-	Hash          string `json:"hash"`
-	Size          int    `json:"size"`
-	Vsize         int    `json:"vsize"`
-	Version       int    `json:"version"`
-	Locktime      int    `json:"locktime"`
-	Vin           []Vin  `json:"vin"`
-	Vout          []Vout `json:"vout"`
-	Blockhash     string `json:"blockhash"`
-	Confirmations int    `json:"confirmations"`
-	Time          int    `json:"time"`
-	Blocktime     int    `json:"blocktime"`
-	Hex           string `json:"hex"`
-}
-
-// JSON returns the Transaction in a format for return to client
-func (tx Transaction) JSON() []byte {
-	txn, err := json.Marshal(tx)
-	if err != nil {
-		panic(err)
-	}
-	return txn
-}
-
-// Vin models a vin in a transaction
-type Vin struct {
-	Txid      string    `json:"txid"`
-	Vout      int       `json:"vout"`
-	ScriptSig ScriptSig `json:"scriptSig"`
-	Sequence  int64     `json:"sequence"`
-}
-
-// ScriptSig models the scriptSig portion of a vin
-type ScriptSig struct {
-	Asm string `json:"asm"`
-	Hex string `json:"hex"`
-}
-
-// Vout models a vout in a transaction
-type Vout struct {
-	Value        float64      `json:"value"`
-	N            int          `json:"n"`
-	ScriptPubKey ScriptPubKey `json:"scriptPubKey"`
-}
-
-// ScriptPubKey models the scriptPubKey portion of a vout
-type ScriptPubKey struct {
-	Asm       string   `json:"asm"`
-	Hex       string   `json:"hex"`
-	ReqSigs   int      `json:"reqSigs"`
-	Type      string   `json:"type"`
-	Addresses []string `json:"addresses"`
-}
-
-func newBitcoreAddressesStartEndRequest(addresses []string, start int, end int) []byte {
-	srtr := BitcoreRequest{
-		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
-		Params:  []interface{}{addresses, start, end},
-	}
-	out, err := json.Marshal(srtr)
-	if err != nil {
-		panic(err)
-	}
-	return out
-}
-
-// GetAddressTxIDsResultWrapper wraps the return
-type GetAddressTxIDsResultWrapper struct {
-	Result []string    `json:"result"`
-	Error  interface{} `json:"error"`
-	ID     interface{} `json:"id"`
-}
-
-func newGetAddressTxIDsRequest(addresses []string, start int, end int) []byte {
+func getAddressTxIDsRequest(addresses []string, start int, end int) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "getaddresstxids",
@@ -309,9 +48,9 @@ func newGetAddressTxIDsRequest(addresses []string, start int, end int) []byte {
 // GetAddressTxIDs searches for all txid associated with an address.
 //   - Most recient last
 //   - Only confirmed
-func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) (GetAddressTxIDsResultWrapper, error) {
-	out := GetAddressTxIDsResultWrapper{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddressTxIDsRequest(addresses, start, end)))
+func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) (GetAddressTxIDsResponse, error) {
+	out := GetAddressTxIDsResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getAddressTxIDsRequest(addresses, start, end)))
 	if err != nil {
 		return out, err
 	}
@@ -335,6 +74,26 @@ func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) (GetAd
 	return out, nil
 }
 
+// GetAddressTxIDsResponse wraps the return
+type GetAddressTxIDsResponse struct {
+	Result []string    `json:"result"`
+	Error  interface{} `json:"error"`
+	ID     interface{} `json:"id"`
+}
+
+func getAddressDeltasRequest(addresses []string, start int, end int) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "getaddressdeltas",
+		Params:  []interface{}{map[string]interface{}{"addresses": addresses, "start": start, "end": end}},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
+}
+
 // GetAddressDeltas searches for all inputs, outputs and top level detail for transactions
 //   - Only confirmed
 //   - Negative "satoshis" = Vin
@@ -349,7 +108,7 @@ func (as *AddrServer) GetAddressTxIDs(addresses []string, start, end int) (GetAd
 // }
 func (as *AddrServer) GetAddressDeltas(addresses []string, start, end int) (GetAddressDeltasResponse, error) {
 	out := GetAddressDeltasResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddressesStartEndRequest(addresses, start, end)))
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getAddressDeltasRequest(addresses, start, end)))
 	if err != nil {
 		return out, err
 	}
@@ -374,7 +133,14 @@ func (as *AddrServer) GetAddressDeltas(addresses []string, start, end int) (GetA
 }
 
 // GetAddressDeltasResponse is the response struct for GetAddressDeltas
-type GetAddressDeltasResponse []struct {
+type GetAddressDeltasResponse struct {
+	Result []AddressDelta `json:"result"`
+	Error  interface{}    `json:"error"`
+	ID     interface{}    `json:"id"`
+}
+
+// AddressDelta represents a balance change for an address
+type AddressDelta struct {
 	Satoshis   int    `json:"satoshis"`
 	Txid       string `json:"txid"`
 	Index      int    `json:"index"`
@@ -383,20 +149,7 @@ type GetAddressDeltasResponse []struct {
 	Address    string `json:"address"`
 }
 
-func newBitcoreAddessesRequest(addresses []string) []byte {
-	srtr := BitcoreRequest{
-		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
-		Params:  []interface{}{addresses},
-	}
-	out, err := json.Marshal(srtr)
-	if err != nil {
-		panic(err)
-	}
-	return out
-}
-
-func newGetAddessesBalanceRequest(addresses []string) []byte {
+func getAddressBalanceRequest(addresses []string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "getaddressbalance",
@@ -409,17 +162,10 @@ func newGetAddessesBalanceRequest(addresses []string) []byte {
 	return out
 }
 
-// GetAddressBalanceResultWrapper wraps the return
-type GetAddressBalanceResultWrapper struct {
-	Result GetAddressBalanceResult `json:"result"`
-	Error  interface{}             `json:"error"`
-	ID     interface{}             `json:"id"`
-}
-
 // GetAddressBalance returns the balance of confirmed transactions
-func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceResultWrapper, error) {
-	out := GetAddressBalanceResultWrapper{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddessesBalanceRequest(addresses)))
+func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceResult, error) {
+	out := GetAddressBalanceResult{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getAddressBalanceRequest(addresses)))
 	if err != nil {
 		return out, err
 	}
@@ -446,11 +192,18 @@ func (as *AddrServer) GetAddressBalance(addresses []string) (GetAddressBalanceRe
 
 // GetAddressBalanceResult is the response struct for GetAddressBalance
 type GetAddressBalanceResult struct {
+	Result AddressBalance `json:"result"`
+	Error  interface{}    `json:"error"`
+	ID     interface{}    `json:"id"`
+}
+
+// AddressBalance is the balance of an address
+type AddressBalance struct {
 	Balance  int `json:"balance"`
 	Received int `json:"received"`
 }
 
-func newGetAddressUTXOsRequest(addresses []string) []byte {
+func getAddressUTXORequest(addresses []string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "getaddressutxos",
@@ -463,17 +216,10 @@ func newGetAddressUTXOsRequest(addresses []string) []byte {
 	return out
 }
 
-// GetAddressUTXOsResponseWrapper contains some error and ID fields
-type GetAddressUTXOsResponseWrapper struct {
-	Result GetAddressUTXOsResponse `json:"result"`
-	Error  interface{}             `json:"error"`
-	ID     interface{}             `json:"id"`
-}
-
 // GetAddressUTXOs returns the list of UTXO for an address sorted by block height
-func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsResponseWrapper, error) {
-	out := GetAddressUTXOsResponseWrapper{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newGetAddressUTXOsRequest(addresses)))
+func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsResponse, error) {
+	out := GetAddressUTXOsResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getAddressUTXORequest(addresses)))
 	if err != nil {
 		return out, err
 	}
@@ -499,13 +245,33 @@ func (as *AddrServer) GetAddressUTXOs(addresses []string) (GetAddressUTXOsRespon
 }
 
 // GetAddressUTXOsResponse is the response struct for GetAddressUTXOs
-type GetAddressUTXOsResponse []struct {
+type GetAddressUTXOsResponse struct {
+	Result []UTXOIns   `json:"result"`
+	Error  interface{} `json:"error"`
+	ID     interface{} `json:"id"`
+}
+
+// UTXOIns is an insight representation of a UTXO
+type UTXOIns struct {
 	Address     string `json:"address"`
 	Txid        string `json:"txid"`
 	OutputIndex int    `json:"outputIndex"`
 	Script      string `json:"script"`
 	Satoshis    int    `json:"satoshis"`
 	Height      int    `json:"height"`
+}
+
+func getAddressMempoolRequest(addresses []string) []byte {
+	srtr := BitcoreRequest{
+		JSONRPC: "1.0",
+		Method:  "getaddressmempool",
+		Params:  []interface{}{map[string][]string{"addresses": addresses}},
+	}
+	out, err := json.Marshal(srtr)
+	if err != nil {
+		panic(err)
+	}
+	return out
 }
 
 // GetAddressMempool returns GetAddressDeltas but for the mempool:
@@ -523,7 +289,7 @@ type GetAddressUTXOsResponse []struct {
 // },
 func (as *AddrServer) GetAddressMempool(addresses []string) (GetAddressMempoolResponse, error) {
 	out := GetAddressMempoolResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreAddessesRequest(addresses)))
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getAddressMempoolRequest(addresses)))
 	if err != nil {
 		return out, err
 	}
@@ -548,7 +314,16 @@ func (as *AddrServer) GetAddressMempool(addresses []string) (GetAddressMempoolRe
 }
 
 // GetAddressMempoolResponse is the response struct for GetAddressMempool
-type GetAddressMempoolResponse []struct {
+type GetAddressMempoolResponse struct {
+	Result []AddrMempoolTransaction `json:"result"`
+	Error  interface{}              `json:"error"`
+	ID     interface{}              `json:"id"`
+}
+
+// AddrMempoolTransaction represents a transaction in the mempool
+// prevtxid and prevout that can be used for marking utxos as spent
+// Instead of height there is timestamp that is the time the transaction entered the mempool
+type AddrMempoolTransaction []struct {
 	Address   string `json:"address"`
 	Txid      string `json:"txid"`
 	Index     int    `json:"index"`
@@ -558,7 +333,7 @@ type GetAddressMempoolResponse []struct {
 	Prevout   int    `json:"prevout,omitempty"`
 }
 
-func newBitcoreStartEndRequest(start, end int) []byte {
+func getBlockHashesRequest(start, end int) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "searchrawtransactions",
@@ -571,10 +346,10 @@ func newBitcoreStartEndRequest(start, end int) []byte {
 	return out
 }
 
-// GetBlockHashes returns blockhashes between two unix epoch timestamps
-func (as *AddrServer) GetBlockHashes(start, end int) ([]string, error) {
-	out := []string{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreStartEndRequest(start, end)))
+// GetBlockHashes returns blockhashes between two unix epoch timestamps (seconds)
+func (as *AddrServer) GetBlockHashes(start, end int) (GetBlockHashesResponse, error) {
+	out := GetBlockHashesResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getBlockHashesRequest(start, end)))
 	if err != nil {
 		return out, err
 	}
@@ -598,11 +373,18 @@ func (as *AddrServer) GetBlockHashes(start, end int) ([]string, error) {
 	return out, nil
 }
 
-func newBitcoreTxWithIndexRequest(txid string, index int) []byte {
+// GetBlockHashesResponse is response struct for GetBlockHashes
+type GetBlockHashesResponse struct {
+	Result []string    `json:"result"`
+	Error  interface{} `json:"error"`
+	ID     interface{} `json:"id"`
+}
+
+func getSpentInfoRequest(txid string, index int) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
-		Method:  "searchrawtransactions",
-		Params:  []interface{}{txid, index},
+		Method:  "getspentinfo",
+		Params:  []interface{}{map[string]interface{}{"tx": txid, "index": index}},
 	}
 	out, err := json.Marshal(srtr)
 	if err != nil {
@@ -614,7 +396,7 @@ func newBitcoreTxWithIndexRequest(txid string, index int) []byte {
 // GetSpentInfo returns the txid and input index that has spent the output
 func (as *AddrServer) GetSpentInfo(txid string, index int) (GetSpentInfoResponse, error) {
 	out := GetSpentInfoResponse{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreTxWithIndexRequest(txid, index)))
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getSpentInfoRequest(txid, index)))
 	if err != nil {
 		return out, err
 	}
@@ -640,12 +422,20 @@ func (as *AddrServer) GetSpentInfo(txid string, index int) (GetSpentInfoResponse
 
 // GetSpentInfoResponse is response struct for GetSpentInfo
 type GetSpentInfoResponse struct {
+	Result SpentInfo   `json:"result"`
+	Error  interface{} `json:"error"`
+	ID     interface{} `json:"id"`
+}
+
+// SpentInfo contains data about spent transaction outputs
+type SpentInfo struct {
 	Txid   string `json:"txid"`
 	Index  int    `json:"index"`
 	Height int    `json:"height"`
 }
 
-func newBitcoreRawTxRequest(addresses string) []byte {
+// getRawTransactionRequest formats the json payload for the getrawtransaction RPC
+func getRawTransactionRequest(addresses string) []byte {
 	srtr := BitcoreRequest{
 		JSONRPC: "1.0",
 		Method:  "getrawtransaction",
@@ -658,21 +448,14 @@ func newBitcoreRawTxRequest(addresses string) []byte {
 	return out
 }
 
-// GetRawTransactionResponseWrapper facilitates return
-type GetRawTransactionResponseWrapper struct {
-	Result GetRawTransactionResponse `json:"result"`
-	Error  interface{}               `json:"error"`
-	ID     interface{}               `json:"id"`
-}
-
 // GetRawTransaction verbose result will now has some additional fields added when spentindex is enabled.
 // The vin values will include value (a float in BTC) and valueSat (an integer in satoshis) with the
 // previous output value as well as the  address. The vout values will also now include a valueSat
 // (an integer in satoshis). It will also include  spentTxId, spentIndex and spentHeight that corresponds
 // with the input that spent the output.
-func (as *AddrServer) GetRawTransaction(txn string) (GetRawTransactionResponseWrapper, error) {
-	out := GetRawTransactionResponseWrapper{}
-	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(newBitcoreRawTxRequest(txn)))
+func (as *AddrServer) GetRawTransaction(txn string) (GetRawTransactionResponse, error) {
+	out := GetRawTransactionResponse{}
+	req, err := http.NewRequest("POST", as.URL(), bytes.NewBuffer(getRawTransactionRequest(txn)))
 	if err != nil {
 		return out, err
 	}
@@ -696,8 +479,15 @@ func (as *AddrServer) GetRawTransaction(txn string) (GetRawTransactionResponseWr
 	return out, nil
 }
 
-// GetRawTransactionResponse is the response struct for GetRawTransaction
+// GetRawTransactionResponse facilitates return
 type GetRawTransactionResponse struct {
+	Result TransactionIns `json:"result"`
+	Error  interface{}    `json:"error"`
+	ID     interface{}    `json:"id"`
+}
+
+// TransactionIns is the response struct for GetRawTransaction
+type TransactionIns struct {
 	Hex           string    `json:"hex"`
 	Txid          string    `json:"txid"`
 	Size          int       `json:"size"`
@@ -710,35 +500,4 @@ type GetRawTransactionResponse struct {
 	Confirmations int       `json:"confirmations"`
 	Time          int       `json:"time"`
 	Blocktime     int       `json:"blocktime"`
-}
-
-// VinIns is the bitcore representation of a Vin
-type VinIns struct {
-	Txid      string    `json:"txid"`
-	Vout      int       `json:"vout"`
-	ScriptSig ScriptSig `json:"scriptSig"`
-	Value     float64   `json:"value"`
-	ValueSat  int       `json:"valueSat"`
-	Address   string    `json:"address"`
-	Sequence  int64     `json:"sequence"`
-}
-
-// ScriptPubKeyIns is the bitcore representation of a ScriptPubKey
-type ScriptPubKeyIns struct {
-	Asm       string   `json:"asm"`
-	Hex       string   `json:"hex"`
-	ReqSigs   int      `json:"reqSigs"`
-	Type      string   `json:"type"`
-	Addresses []string `json:"addresses"`
-}
-
-// VoutIns is the bitcore representation of a Vout
-type VoutIns struct {
-	Value        float64         `json:"value"`
-	ValueSat     int             `json:"valueSat"`
-	N            int             `json:"n"`
-	ScriptPubKey ScriptPubKeyIns `json:"scriptPubKey"`
-	SpentTxID    string          `json:"spentTxId,omitempty"`
-	SpentIndex   int             `json:"spentIndex,omitempty"`
-	SpentHeight  int             `json:"spentHeight,omitempty"`
 }

@@ -54,7 +54,7 @@ func (as *AddrServer) HandleTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var retTxns []string
-	var out []GetRawTransactionResponse
+	var out []TransactionIns
 
 	// Pull off a page of transactions
 	if len(txns.Result) < 10 {
@@ -418,7 +418,7 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var retTxns []string
-		var out []GetRawTransactionResponse
+		var out []TransactionIns
 
 		// Pull off a page of transactions
 		if len(txns.Result) < 10 {

@@ -101,32 +101,32 @@ func (as *AddrServer) connCfg() *rpcclient.ConnConfig {
 
 // fetchAllTransactions pages through the transactions for an address
 // NOTE: This can take a long time!
-func (as *AddrServer) fetchAllTransactions(addr string) (Transactions, error) {
-	txns := []Transaction{}
-	count := 0
-	for {
-		// Fetch page of transactions
-		searchtxns, err := as.SearchRawTransactions(addr, (count * as.Transactions), as.Transactions)
-		if err != nil {
-			return nil, err
-		}
-
-		// Increment page count
-		count++
-
-		// If the page is full we need to append them and continue to next page
-		if len(searchtxns.Result) == as.Transactions {
-			for _, tx := range searchtxns.Result {
-				txns = append(txns, tx)
-			}
-			continue
-		}
-
-		// If not we need to save the tansactions and return
-		for _, tx := range searchtxns.Result {
-			txns = append(txns, tx)
-		}
-
-		return txns, nil
-	}
-}
+// func (as *AddrServer) fetchAllTransactions(addr string) (Transactions, error) {
+// 	txns := []Transaction{}
+// 	count := 0
+// 	for {
+// 		// Fetch page of transactions
+// 		searchtxns, err := as.SearchRawTransactions(addr, (count * as.Transactions), as.Transactions)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+//
+// 		// Increment page count
+// 		count++
+//
+// 		// If the page is full we need to append them and continue to next page
+// 		if len(searchtxns.Result) == as.Transactions {
+// 			for _, tx := range searchtxns.Result {
+// 				txns = append(txns, tx)
+// 			}
+// 			continue
+// 		}
+//
+// 		// If not we need to save the tansactions and return
+// 		for _, tx := range searchtxns.Result {
+// 			txns = append(txns, tx)
+// 		}
+//
+// 		return txns, nil
+// 	}
+// }
