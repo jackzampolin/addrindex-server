@@ -86,6 +86,14 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	addr := mux.Vars(r)["addr"]
 
+	// Fetch current block info
+	info, err := as.Client.GetInfo()
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("failed to getInfo", err))
+		return
+	}
+
 	// paginate through transactions
 	txns, err := as.GetAddressUTXOs([]string{addr})
 	if err != nil {
@@ -93,8 +101,57 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-	out, _ := json.Marshal(txns.Result)
-	w.Write(out)
+
+	mptxns, err := as.GetAddressMempool([]string{addr})
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("error fetching mempool transactions for address", err))
+	}
+
+	// mpo, _ := json.Marshal(mptxns)
+	// fmt.Println(string(mpo))
+	// txnso, _ := json.Marshal(txns)
+	// fmt.Println("********************************************************************")
+	// fmt.Println(string(txnso))
+
+	// If there are no mempool transactions then just return the historical
+	if len(mptxns.Result) < 1 {
+		for _, tx := range txns.Result {
+			tx.Enrich(int(info.Blocks))
+		}
+		out, _ := json.Marshal(txns.Result)
+		w.Write(out)
+		return
+	}
+
+	var out []UTXOIns
+	var excl []string
+	for _, mptx := range mptxns.Result {
+		if mptx.Prevtxid != "" {
+			for _, tx := range txns.Result {
+				if mptx.Prevtxid == tx.Txid {
+					excl = append(excl, tx.Txid)
+				}
+			}
+		}
+		out = append(out, mptx.UTXO())
+	}
+
+	for _, tx := range txns.Result {
+		spent := false
+		for _, ex := range excl {
+			if tx.Txid == ex {
+				spent = true
+			}
+		}
+		if !spent {
+			tx.Enrich(int(info.Blocks))
+			out = append(out, tx)
+		}
+	}
+
+	o, _ := json.Marshal(out)
+	w.Write(o)
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route

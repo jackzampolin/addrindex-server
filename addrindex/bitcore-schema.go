@@ -39,25 +39,18 @@ type ScriptSig struct {
 
 // TransactionIns is the response struct for GetRawTransaction
 type TransactionIns struct {
-	Hex           string    `json:"hex"`
-	Txid          string    `json:"txid"`
-	Size          int       `json:"size"`
-	Version       int       `json:"version"`
-	Locktime      int       `json:"locktime"`
-	Vin           []VinIns  `json:"vin"`
-	Vout          []VoutIns `json:"vout"`
-	Blockhash     string    `json:"blockhash"`
-	Height        int       `json:"height"`
-	Confirmations int       `json:"confirmations"`
-	Time          int       `json:"time"`
-	Blocktime     int       `json:"blocktime"`
-}
-
-// SpentInfo contains data about spent transaction outputs
-type SpentInfo struct {
-	Txid   string `json:"txid"`
-	Index  int    `json:"index"`
-	Height int    `json:"height"`
+	Hex           string    `json:"hex,omitempty"`
+	Txid          string    `json:"txid,omitempty"`
+	Size          int       `json:"size,omitempty"`
+	Version       int       `json:"version,omitempty"`
+	Locktime      int       `json:"locktime,omitempty"`
+	Vin           []VinIns  `json:"vin,omitempty"`
+	Vout          []VoutIns `json:"vout,omitempty"`
+	Blockhash     string    `json:"blockhash,omitempty"`
+	Height        int       `json:"height,omitempty"`
+	Confirmations int       `json:"confirmations,omitempty"`
+	Time          int       `json:"time,omitempty"`
+	Blocktime     int       `json:"blocktime,omitempty"`
 }
 
 // AddrMempoolTransaction represents a transaction in the mempool
@@ -73,14 +66,39 @@ type AddrMempoolTransaction struct {
 	Prevout   int    `json:"prevout,omitempty"`
 }
 
+func (amp AddrMempoolTransaction) UTXO() UTXOIns {
+	return UTXOIns{
+		Address:       amp.Address,
+		Txid:          amp.Txid,
+		OutputIndex:   amp.Index,
+		Satoshis:      amp.Satoshis,
+		Amount:        float64(amp.Satoshis) / 100000000,
+		Confirmations: 0,
+	}
+}
+
 // UTXOIns is an insight representation of a UTXO
 type UTXOIns struct {
-	Address     string `json:"address"`
-	Txid        string `json:"txid"`
-	OutputIndex int    `json:"outputIndex"`
-	Script      string `json:"script"`
-	Satoshis    int    `json:"satoshis"`
-	Height      int    `json:"height"`
+	Address       string  `json:"address"`
+	Txid          string  `json:"txid"`
+	OutputIndex   int     `json:"outputIndex"`
+	Script        string  `json:"script,omitempty"`
+	Satoshis      int     `json:"satoshis,omitempty"`
+	Amount        float64 `json:"amount,omitempty"`
+	Height        int     `json:"height,omitempty"`
+	Confirmations int     `json:"confirmations"`
+}
+
+func (utxo UTXOIns) Enrich(blockHeight int) {
+	utxo.Confirmations = blockHeight - utxo.Height
+	utxo.Amount = float64(utxo.Satoshis) / 100000000
+}
+
+// SpentInfo contains data about spent transaction outputs
+type SpentInfo struct {
+	Txid   string `json:"txid"`
+	Index  int    `json:"index"`
+	Height int    `json:"height"`
 }
 
 // AddressBalance is the balance of an address
