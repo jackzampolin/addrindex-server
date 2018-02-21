@@ -75,16 +75,25 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	var excl []string
 	for _, mptx := range mptxns.Result {
 		if mptx.Prevtxid != "" {
+			// Mark spent transactions from the getAddressUTXO
 			for _, tx := range txns.Result {
 				if mptx.Prevtxid == tx.Txid {
 					excl = append(excl, tx.Txid)
 				}
 			}
+			// Ignore mempool txns that have their prior transaction in the mempool
+			for _, tx := range mptxns.Result {
+				if tx.Prevtxid == mptx.Prevtxid {
+					continue
+				}
+			}
 			continue
 		}
+		// Append any remaining mempool transactions to the utxo set
 		out = append(out, mptx.UTXO())
 	}
 
+	// Include getAddressUTXO results that we want
 	for _, tx := range txns.Result {
 		spent := false
 		for _, ex := range excl {
@@ -97,6 +106,7 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Sort by confirmations and return
 	sort.Sort(out)
 	o, _ := json.Marshal(out)
 	w.Write(o)

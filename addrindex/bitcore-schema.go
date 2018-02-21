@@ -66,7 +66,7 @@ type AddrMempoolTransaction struct {
 	Prevout   int    `json:"prevout,omitempty"`
 }
 
-// UTXO is a thing
+// UTXO takes a mempool transaction and converts it into the output format for /addr/<addr>/utxo
 func (amp AddrMempoolTransaction) UTXO() UTXOInsOut {
 	return UTXOInsOut{
 		Address:       amp.Address,
@@ -92,15 +92,20 @@ type UTXOIns struct {
 	Confirmations int     `json:"confirmations"`
 }
 
-// UTXOInsOuts for sorting
+// UTXOInsOuts is a collection with methods defined for sorting
 type UTXOInsOuts []UTXOInsOut
 
+// Len implements sort for UTXOInsOuts
 func (s UTXOInsOuts) Len() int {
 	return len(s)
 }
+
+// Swap implements sort for UTXOInsOuts
 func (s UTXOInsOuts) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
+
+// Less implements sort for UTXOInsOuts
 func (s UTXOInsOuts) Less(i, j int) bool {
 	return s[i].Confirmations < s[j].Confirmations
 }
@@ -118,7 +123,7 @@ type UTXOInsOut struct {
 	Confirmations int     `json:"confirmations"`
 }
 
-// Enrich is enriching
+// Enrich adds data to a utxo to make the output format
 func (utxo UTXOIns) Enrich(blockHeight int32) UTXOInsOut {
 	return UTXOInsOut{
 		Address:       utxo.Address,
