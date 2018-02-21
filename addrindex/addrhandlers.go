@@ -71,38 +71,24 @@ func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var check UTXOInsOuts
 	var out UTXOInsOuts
-	var excl []string
-	for _, mptx := range mptxns.Result {
-		if mptx.Prevtxid != "" {
-			// Mark spent transactions from the getAddressUTXO
-			for _, tx := range txns.Result {
-				if mptx.Prevtxid == tx.Txid {
-					excl = append(excl, tx.Txid)
-				}
-			}
-			// Ignore mempool txns that have their prior transaction in the mempool
-			for _, tx := range mptxns.Result {
-				if tx.Prevtxid == mptx.Prevtxid {
-					continue
-				}
-			}
-			continue
-		}
-		// Append any remaining mempool transactions to the utxo set
-		out = append(out, mptx.UTXO())
+
+	for _, tx := range txns.Result {
+		check = append(check, tx.Enrich(info.Blocks))
 	}
 
-	// Include getAddressUTXO results that we want
-	for _, tx := range txns.Result {
-		spent := false
-		for _, ex := range excl {
-			if tx.Txid == ex {
-				spent = true
-			}
+	for _, mptx := range mptxns.Result {
+		if mptx.Prevtxid == "" {
+			check = append(check, mptx.UTXO())
 		}
-		if !spent {
-			out = append(out, tx.Enrich(info.Blocks))
+	}
+
+	for _, toCheck := range check {
+		for _, mptx := range mptxns.Result {
+			if !(mptx.Prevtxid == toCheck.Txid && toCheck.OutputIndex == mptx.Prevout) {
+				out = append(out, toCheck)
+			}
 		}
 	}
 
