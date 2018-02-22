@@ -34,12 +34,13 @@ var (
 )
 
 func handlerTestSetup() (*AddrServer, *httptest.Server) {
-	as := NewAddrServer(&AddrServerConfig{
+	as := NewTestAddrServer(&AddrServerConfig{
 		Host:    testServer,
 		Usr:     testUser,
 		Pass:    testPass,
 		SSL:     testSSL,
 		Port:    testPort,
+		Timeout: 300,
 		Version: "test",
 		Commit:  "test",
 		Branch:  "test",

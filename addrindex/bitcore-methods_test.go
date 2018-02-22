@@ -17,12 +17,13 @@ var (
 )
 
 func bitcoreTestSetup() *AddrServer {
-	return NewAddrServer(&AddrServerConfig{
+	return NewTestAddrServer(&AddrServerConfig{
 		Host:    testServer,
 		Usr:     testUser,
 		Pass:    testPass,
 		SSL:     testSSL,
 		Port:    testPort,
+		Timeout: 300,
 		Version: "test",
 		Commit:  "test",
 		Branch:  "test",

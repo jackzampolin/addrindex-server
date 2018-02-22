@@ -39,6 +39,7 @@ type AddrServer struct {
 }
 
 func (as *AddrServer) updateCurrency() {
+	fmt.Println("timeout", as.Timeout)
 	ticker := time.NewTicker(time.Second * time.Duration(as.Timeout))
 	for _ = range ticker.C {
 		bn := binancePrice()
@@ -108,6 +109,31 @@ func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 	out.RefreshBlocks()
 	go out.updateCurrency()
 	go out.updateBlocks()
+	return out
+}
+
+// NewTestAddrServer returns a new AddrServer instance
+func NewTestAddrServer(cfg *AddrServerConfig) *AddrServer {
+	out := &AddrServer{
+		Host:       cfg.Host,
+		User:       cfg.Usr,
+		Pass:       cfg.Pass,
+		DisableTLS: !cfg.SSL,
+		Port:       cfg.Port,
+		Timeout:    cfg.Timeout,
+		versionData: versionData{
+			Version: cfg.Version,
+			Commit:  cfg.Commit,
+			Branch:  cfg.Branch,
+		},
+		Blocks:       &Blocks{},
+		CurrencyData: NewCurrencyData(),
+	}
+	client, err := rpcclient.New(out.connCfg(), nil)
+	if err != nil {
+		panic(err)
+	}
+	out.Client = client
 	return out
 }
 
