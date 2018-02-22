@@ -24,6 +24,7 @@ func (as *AddrServer) RefreshBlocks() {
 	blocks, err := as.GetBlockHashes(int(now.Unix()), int(now.Add(-24*time.Hour).Unix()))
 	if err != nil {
 		log.Println("Failed fetching block hashes")
+		return
 	}
 	var toQuery []string
 	for i := len(blocks.Result) - 1; i >= 0; i-- {
