@@ -106,9 +106,9 @@ func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 		panic(err)
 	}
 	out.Client = client
-	out.RefreshBlocks()
-	go out.updateCurrency()
-	go out.updateBlocks()
+	// out.RefreshBlocks()
+	// go out.updateCurrency()
+	// go out.updateBlocks()
 	return out
 }
 
