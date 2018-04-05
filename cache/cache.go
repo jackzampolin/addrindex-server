@@ -6,8 +6,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"time"
-
-	r "gopkg.in/redis.v5"
+	// r "gopkg.in/redis.v5"
 )
 
 //Storage mecanism for caching strings
@@ -16,39 +15,39 @@ type Storage interface {
 	Set(key string, content []byte, duration time.Duration)
 }
 
-const preffix = "_PAGE_CACHE_"
-
-// RedisCache storage mecanism for caching strings in memory
-type RedisCache struct {
-	client *r.Client
-}
-
-// NewRedisCache creates a new redis storage
-func NewRedisCache(url string) (*RedisCache, error) {
-	var (
-		opts *r.Options
-		err  error
-	)
-
-	if opts, err = r.ParseURL(url); err != nil {
-		return nil, err
-	}
-
-	return &RedisCache{
-		client: r.NewClient(opts),
-	}, nil
-}
-
-// Get a cached content by key
-func (c RedisCache) Get(key string) []byte {
-	val, _ := c.client.Get(preffix + key).Bytes()
-	return val
-}
-
-// Set a cached content by key
-func (c RedisCache) Set(key string, content []byte, duration time.Duration) {
-	c.client.Set(preffix+key, content, duration)
-}
+// const preffix = "_PAGE_CACHE_"
+//
+// // RedisCache storage mecanism for caching strings in memory
+// type RedisCache struct {
+// 	client *r.Client
+// }
+//
+// // NewRedisCache creates a new redis storage
+// func NewRedisCache(url string) (*RedisCache, error) {
+// 	var (
+// 		opts *r.Options
+// 		err  error
+// 	)
+//
+// 	if opts, err = r.ParseURL(url); err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return &RedisCache{
+// 		client: r.NewClient(opts),
+// 	}, nil
+// }
+//
+// // Get a cached content by key
+// func (c RedisCache) Get(key string) []byte {
+// 	val, _ := c.client.Get(preffix + key).Bytes()
+// 	return val
+// }
+//
+// // Set a cached content by key
+// func (c RedisCache) Set(key string, content []byte, duration time.Duration) {
+// 	c.client.Set(preffix+key, content, duration)
+// }
 
 // MEMORY CACHE
 
