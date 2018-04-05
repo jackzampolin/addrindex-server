@@ -6,43 +6,36 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"sync"
 )
 
 // NewCurrencyData returns the struct that manages currency data
 func NewCurrencyData() *CurrencyData {
 	cd := &CurrencyData{}
-	cd.Refresh()
+	cd.Get()
 	return cd
 }
 
 // CurrencyData represents the current BTC price from a couple of providers
 type CurrencyData struct {
-	Binance        float64 `json:"binance"`
-	BlockchainInfo float64 `json:"blockchainInfo"`
-	Coinbase       float64 `json:"coinbase"`
-
-	sync.Mutex
+	Status int `json:"status"`
+	Data   struct {
+		Binance        float64 `json:"binance"`
+		BlockchainInfo float64 `json:"blockchainInfo"`
+		Coinbase       float64 `json:"coinbase"`
+	} `json:"data"`
 }
 
 // JSON returns the json representation of CurrencyData
 func (c *CurrencyData) JSON() []byte {
-	c.Lock()
 	out, _ := json.Marshal(c)
-	c.Unlock()
 	return out
 }
 
 // Refresh refreshes the bitcoin price for the currency info struct
-func (c *CurrencyData) Refresh() {
-	bn := binancePrice()
-	bi := blockchainInfoPrice()
-	cb := coinbasePrice()
-	c.Lock()
-	c.Binance = bn
-	c.BlockchainInfo = bi
-	c.Coinbase = cb
-	c.Unlock()
+func (c *CurrencyData) Get() {
+	c.Data.Binance = binancePrice()
+	c.Data.BlockchainInfo = blockchainInfoPrice()
+	c.Data.Coinbase = coinbasePrice()
 }
 
 type getBinancePriceResponse struct {

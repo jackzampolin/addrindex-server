@@ -17,47 +17,25 @@ package addrindex
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/gorilla/mux"
+	"github.com/jackzampolin/addrindex-server/cache"
 )
 
 // AddrServer is the struct where all methods are defined
 type AddrServer struct {
-	Host         string
-	User         string
-	Pass         string
-	DisableTLS   bool
-	Port         int
-	Client       *rpcclient.Client
-	Timeout      int
-	CurrencyData *CurrencyData
-	Blocks       *Blocks
+	Host            string
+	User            string
+	Pass            string
+	DisableTLS      bool
+	Port            int
+	Client          *rpcclient.Client
+	Timeout         int
+	Blocks          *Blocks
+	RedisConnection string
 
 	versionData versionData
-}
-
-func (as *AddrServer) updateCurrency() {
-	fmt.Println("timeout", as.Timeout)
-	ticker := time.NewTicker(time.Second * time.Duration(as.Timeout))
-	for _ = range ticker.C {
-		bn := binancePrice()
-		bi := blockchainInfoPrice()
-		cb := coinbasePrice()
-		as.CurrencyData.Lock()
-		as.CurrencyData.Binance = bn
-		as.CurrencyData.BlockchainInfo = bi
-		as.CurrencyData.Coinbase = cb
-		as.CurrencyData.Unlock()
-	}
-}
-
-func (as *AddrServer) updateBlocks() {
-	ticker := time.NewTicker(time.Second * time.Duration(as.Timeout))
-	for _ = range ticker.C {
-		as.RefreshBlocks()
-	}
 }
 
 func (as *AddrServer) version() []byte {
@@ -73,42 +51,40 @@ type versionData struct {
 
 // AddrServerConfig configures the AddrServer
 type AddrServerConfig struct {
-	Host    string `json:"host"`
-	Usr     string `json:"usr"`
-	Pass    string `json:"pass"`
-	SSL     bool   `json:"ssl"`
-	Port    int    `json:"port"`
-	Timeout int    `json:"timeout"`
-	Version string
-	Commit  string
-	Branch  string
+	Host            string `json:"host"`
+	Usr             string `json:"usr"`
+	Pass            string `json:"pass"`
+	SSL             bool   `json:"ssl"`
+	Port            int    `json:"port"`
+	Timeout         int    `json:"timeout"`
+	RedisConnection string `json:"redis"`
+	Version         string
+	Commit          string
+	Branch          string
 }
 
 // NewAddrServer returns a new AddrServer instance
 func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 	out := &AddrServer{
-		Host:       cfg.Host,
-		User:       cfg.Usr,
-		Pass:       cfg.Pass,
-		DisableTLS: !cfg.SSL,
-		Port:       cfg.Port,
-		Timeout:    cfg.Timeout,
+		Host:            cfg.Host,
+		User:            cfg.Usr,
+		Pass:            cfg.Pass,
+		DisableTLS:      !cfg.SSL,
+		Port:            cfg.Port,
+		Timeout:         cfg.Timeout,
+		RedisConnection: cfg.RedisConnection,
 		versionData: versionData{
 			Version: cfg.Version,
 			Commit:  cfg.Commit,
 			Branch:  cfg.Branch,
 		},
-		Blocks:       &Blocks{},
-		CurrencyData: NewCurrencyData(),
+		Blocks: &Blocks{},
 	}
 	client, err := rpcclient.New(out.connCfg(), nil)
 	if err != nil {
 		panic(err)
 	}
 	out.Client = client
-	// out.RefreshBlocks()
-	// go out.updateCurrency()
-	// go out.updateBlocks()
 	return out
 }
 
@@ -126,8 +102,7 @@ func NewTestAddrServer(cfg *AddrServerConfig) *AddrServer {
 			Commit:  cfg.Commit,
 			Branch:  cfg.Branch,
 		},
-		Blocks:       &Blocks{},
-		CurrencyData: NewCurrencyData(),
+		Blocks: &Blocks{},
 	}
 	client, err := rpcclient.New(out.connCfg(), nil)
 	if err != nil {
@@ -158,6 +133,8 @@ func (as *AddrServer) connCfg() *rpcclient.ConnConfig {
 // Router holds the routing table for the AddrServer
 func (as *AddrServer) Router() *mux.Router {
 	router := mux.NewRouter()
+	c := cache.NewMemoryCache()
+	cacheTime := "1m"
 
 	router.HandleFunc("/addr/{addr}/utxo", as.HandleAddrUTXO).Methods("GET")
 	router.HandleFunc("/addr/{addr}/balance", as.HandleAddrBalance).Methods("GET")
@@ -170,11 +147,11 @@ func (as *AddrServer) Router() *mux.Router {
 	router.HandleFunc("/tx/send", as.HandleTransactionSend).Methods("POST")
 	router.HandleFunc("/messages/verify", as.HandleMessagesVerify).Methods("POST")
 	router.HandleFunc("/block/{blockHash}", as.HandleGetBlock).Methods("GET")
-	router.HandleFunc("/blocks", as.HandleGetBlocks).Methods("GET")
+	router.HandleFunc("/blocks", cache.Middleware(cacheTime, c, as.HandleGetBlocks)).Methods("GET")
 	router.HandleFunc("/block-index/{height}", as.HandleGetBlockHash).Methods("GET")
 	router.HandleFunc("/status", as.HandleGetStatus).Methods("GET")
 	router.HandleFunc("/sync", as.HandleGetSync).Methods("GET")
 	router.HandleFunc("/version", as.HandleGetVersion).Methods("GET")
-	router.HandleFunc("/currency", as.HandleGetCurrency).Methods("GET")
+	router.HandleFunc("/currency", cache.Middleware(cacheTime, c, as.HandleGetCurrency)).Methods("GET")
 	return router
 }

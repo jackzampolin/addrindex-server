@@ -17,14 +17,13 @@ type Blocks struct {
 	sync.Mutex
 }
 
-// RefreshBlocks pulls new values for the blocks
-func (as *AddrServer) RefreshBlocks() {
-	limit := 11
+// GetBlocksResponse pulls new values for the blocks
+func (as *AddrServer) GetBlocksResponse(limit int64) []byte {
 	now := time.Now()
 	blocks, err := as.GetBlockHashes(int(now.Unix()), int(now.Add(-24*time.Hour).Unix()))
 	if err != nil {
 		log.Println("Failed fetching block hashes")
-		return
+		return []byte("")
 	}
 	var toQuery []string
 	for i := len(blocks.Result) - 1; i >= 0; i-- {
@@ -42,14 +41,15 @@ func (as *AddrServer) RefreshBlocks() {
 		block, err := as.Client.GetBlockVerbose(blockHash)
 		if err != nil {
 			log.Println("Failed fetching block data")
-			return
+			return []byte("")
 		}
 		out = append(out, newGetBlockResponse(block))
 	}
-	as.Blocks.Lock()
-	as.Blocks.Length = limit
-	as.Blocks.Blocks = out
-	as.Blocks.Unlock()
+	ret := &Blocks{
+		Length: int(limit),
+		Blocks: out,
+	}
+	return ret.JSON()
 }
 
 // JSON returns the JSON representation of Blocks

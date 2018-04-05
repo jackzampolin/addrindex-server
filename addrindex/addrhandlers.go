@@ -128,7 +128,18 @@ func (as *AddrServer) HandleAddrUnconfirmedBalance(w http.ResponseWriter, r *htt
 // HandleGetBlocks handles the /blocks route
 func (as *AddrServer) HandleGetBlocks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(as.Blocks.JSON())
+	query := r.URL.Query()
+	limit := "10"
+	if len(query["limit"]) > 0 {
+		limit = query["limit"][0]
+	}
+	lim, err := strconv.ParseInt(limit, 10, 64)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("failed parsing ?limit={val}", err))
+		return
+	}
+	w.Write(as.GetBlocksResponse(lim))
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route
@@ -633,5 +644,7 @@ func NewSyncResponse(bc *btcjson.GetBlockChainInfoResult) []byte {
 
 // HandleGetCurrency handles the /currency route
 func (as *AddrServer) HandleGetCurrency(w http.ResponseWriter, r *http.Request) {
-	w.Write(as.CurrencyData.JSON())
+	cd := NewCurrencyData()
+	cd.Status = 200
+	w.Write(cd.JSON())
 }
