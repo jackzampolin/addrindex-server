@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"github.com/btcsuite/btcd/btcjson"
@@ -28,21 +29,117 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// BlockstackStartBlock represents the point on the bitcoin blockchain where blockstack started
+const BlockstackStartBlock = 373601
+
 // HandleAddrUTXO handles the /addr/<addr>/utxo route
 func (as *AddrServer) HandleAddrUTXO(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	addr := mux.Vars(r)["addr"]
 
+	// Fetch current block info
+	info, err := as.Client.GetInfo()
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("failed to getInfo", err))
+		return
+	}
+
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressUTXOs([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
 
-	utxo := txns.UTXO(addr)
-	w.Write(utxo.JSON())
+	mptxns, err := as.GetAddressMempool([]string{addr})
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("error fetching mempool transactions for address", err))
+		return
+	}
+
+	// If there are no mempool transactions then just return the historical
+	if len(mptxns.Result) < 1 {
+		o := UTXOInsOuts{}
+		for _, utxo := range txns.Result {
+			o = append(o, utxo.Enrich(info.Blocks))
+		}
+		sort.Sort(o)
+		out, _ := json.Marshal(o)
+		w.Write(out)
+		return
+	}
+
+	var check UTXOInsOuts
+	var out UTXOInsOuts
+
+	for _, tx := range txns.Result {
+		check = append(check, tx.Enrich(info.Blocks))
+	}
+
+	for _, mptx := range mptxns.Result {
+		if mptx.Prevtxid == "" {
+			check = append(check, mptx.UTXO())
+		}
+	}
+
+	for _, toCheck := range check {
+		valid := true
+		for _, mptx := range mptxns.Result {
+			if mptx.Prevtxid == toCheck.Txid && toCheck.OutputIndex == mptx.Prevout {
+				valid = false
+			}
+		}
+		if valid {
+			out = append(out, toCheck)
+		}
+	}
+
+	// Sort by confirmations and return
+	sort.Sort(out)
+	o, _ := json.Marshal(out)
+	w.Write(o)
+}
+
+// HandleAddrUnconfirmedBalance handles the /addr/<addr>/unconfirmedBalance route
+func (as *AddrServer) HandleAddrUnconfirmedBalance(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	addr := mux.Vars(r)["addr"]
+
+	mptxns, err := as.GetAddressMempool([]string{addr})
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("error fetching mempool transactions for address", err))
+		return
+	}
+
+	unconfirmed := 0
+
+	for _, mptx := range mptxns.Result {
+		unconfirmed += mptx.Satoshis
+	}
+
+	out, _ := json.Marshal(unconfirmed)
+	w.Write(out)
+}
+
+// HandleGetBlocks handles the /blocks route
+func (as *AddrServer) HandleGetBlocks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	query := r.URL.Query()
+	limit := "10"
+	if len(query["limit"]) > 0 {
+		limit = query["limit"][0]
+	}
+	lim, err := strconv.ParseInt(limit, 10, 64)
+	if err != nil {
+		w.WriteHeader(400)
+		w.Write(NewPostError("failed parsing ?limit={val}", err))
+		return
+	}
+	w.Write(as.GetBlocksResponse(lim))
 }
 
 // HandleAddrBalance handles the /addr/<addr>/balance route
@@ -51,14 +148,14 @@ func (as *AddrServer) HandleAddrBalance(w http.ResponseWriter, r *http.Request) 
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-	utxo := txns.UTXO(addr)
-	w.Write(utxo.Balance())
+	out, _ := json.Marshal(txns.Result.Balance)
+	w.Write(out)
 }
 
 // HandleAddrRecieved handles the /addr/<addr>/totalReceived route
@@ -67,14 +164,14 @@ func (as *AddrServer) HandleAddrRecieved(w http.ResponseWriter, r *http.Request)
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	w.Write(txns.Received(addr))
+	out, _ := json.Marshal(txns.Result.Received)
+	w.Write(out)
 }
 
 // HandleAddrSent handles the /addr/<addr>/totalSent route
@@ -83,14 +180,14 @@ func (as *AddrServer) HandleAddrSent(w http.ResponseWriter, r *http.Request) {
 	addr := mux.Vars(r)["addr"]
 
 	// paginate through transactions
-	txns, err := as.fetchAllTransactions(addr)
+	txns, err := as.GetAddressBalance([]string{addr})
 	if err != nil {
 		w.WriteHeader(400)
 		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	w.Write(txns.Sent(addr))
+	out, _ := json.Marshal(txns.Result.Received - txns.Result.Balance)
+	w.Write(out)
 }
 
 // HandleTxGet handles the /tx/<txid> route
@@ -98,53 +195,35 @@ func (as *AddrServer) HandleTxGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	txid := mux.Vars(r)["txid"]
 
-	// Make the chainhash for fetching data
-	hash, err := chainhash.NewHashFromStr(txid)
+	// paginate through transactions
+	txns, err := as.GetRawTransaction(txid)
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write(NewPostError("error parsing txhash", err))
+		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	// fetch transaction details
-	raw, err := as.Client.GetRawTransactionVerbose(hash)
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("error fetching transaction details", err))
-		return
-	}
-
-	txn, _ := json.Marshal(raw)
-	w.Write(txn)
+	out, _ := json.Marshal(txns.Result)
+	w.Write(out)
 }
 
 // HandleRawTxGet handles the /rawtx/<txid> route
 func (as *AddrServer) HandleRawTxGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	txid := mux.Vars(r)["txid"]
+	addr := mux.Vars(r)["txid"]
 
-	// Make the chainhash for fetching data
-	hash, err := chainhash.NewHashFromStr(txid)
+	// paginate through transactions
+	txns, err := as.GetRawTransaction(addr)
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write(NewPostError("error parsing txhash", err))
+		w.Write(NewPostError("error fetching all transactions for address", err))
 		return
 	}
-
-	// fetch transaction details
-	raw, err := as.Client.GetRawTransactionVerbose(hash)
-	if err != nil {
-		w.WriteHeader(400)
-		w.Write(NewPostError("error fetching transaction details", err))
-		return
-	}
-
-	txn, _ := json.Marshal(map[string]string{"rawtx": raw.Hex})
-	w.Write(txn)
+	out, _ := json.Marshal(map[string]string{"rawtx": txns.Result.Hex})
+	w.Write(out)
 }
 
 // HandleTransactionSend handles the /tx/send route
-// TODO: Test this somehow?
+// TODO: Write a test for this
 func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var tx TxPost
@@ -193,7 +272,7 @@ func (as *AddrServer) HandleTransactionSend(w http.ResponseWriter, r *http.Reque
 }
 
 // HandleMessagesVerify handles the /messages/verify route
-// TODO: Test this somehow?
+// TODO: Write a test for this
 func (as *AddrServer) HandleMessagesVerify(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var tx VerifyPost
@@ -279,8 +358,8 @@ func (as *AddrServer) HandleGetBlockHash(w http.ResponseWriter, r *http.Request)
 	w.Write(bh)
 }
 
-// GetSync handles the /sync route
-func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
+// HandleGetSync handles the /sync route
+func (as *AddrServer) HandleGetSync(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	chainInfo, err := as.Client.GetBlockChainInfo()
@@ -293,8 +372,8 @@ func (as *AddrServer) GetSync(w http.ResponseWriter, r *http.Request) {
 	w.Write(NewSyncResponse(chainInfo))
 }
 
-// GetStatus handles the /status route
-func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
+// HandleGetStatus handles the /status route
+func (as *AddrServer) HandleGetStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	query := r.URL.Query()
 	method := "getInfo"
@@ -332,8 +411,8 @@ func (as *AddrServer) GetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetTransactions handles the /txs route
-func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
+// HandleGetTransactions handles the /txs route
+func (as *AddrServer) HandleGetTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
@@ -368,15 +447,48 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if address != "" {
-		searchtxns, err := as.SearchRawTransactions(address, (int(page) * 10), 10)
+		// Fetch Block Height
+		info, err := as.Client.GetInfo()
 		if err != nil {
 			w.WriteHeader(400)
-			w.Write(NewPostError("failed to fetch address transactions", err))
+			w.Write(NewPostError("failed to getInfo", err))
 			return
 		}
 
-		txns, _ := json.Marshal(searchtxns.Result)
-		w.Write(txns)
+		// paginate through transactions
+		txns, err := as.GetAddressTxIDs([]string{address}, BlockstackStartBlock, int(info.Blocks))
+		if err != nil {
+			w.WriteHeader(400)
+			w.Write(NewPostError("error fetching page of transactions for address", err))
+			return
+		}
+
+		var retTxns []string
+		var out []TransactionIns
+
+		// Pull off a page of transactions
+		if len(txns.Result) < 10 {
+			retTxns = txns.Result
+		} else if len(txns.Result) > ((page + 1) * 10) {
+			retTxns = []string{}
+		} else if len(txns.Result) > (page*10) && len(txns.Result) < ((page+1)*10) {
+			retTxns = txns.Result[page*10:]
+		} else {
+			retTxns = txns.Result[page*10 : (page+1)*10]
+		}
+
+		for _, txid := range retTxns {
+			tx, err := as.GetRawTransaction(txid)
+			if err != nil {
+				w.WriteHeader(400)
+				w.Write(NewPostError("error fetching page of transactions for address", err))
+				return
+			}
+			out = append(out, tx.Result)
+		}
+
+		o, _ := json.Marshal(out)
+		w.Write(o)
 		return
 	}
 
@@ -444,28 +556,10 @@ func (as *AddrServer) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	w.Write(NewPostError("Need to pass ?block=BLOCKHASH or ?address=ADDR", fmt.Errorf("")))
 }
 
-// GetVersion handles the /version route
-func (as *AddrServer) GetVersion(w http.ResponseWriter, r *http.Request) {
+// HandleGetVersion handles the /version route
+func (as *AddrServer) HandleGetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Write(as.version())
 }
-
-// /insight-api/version
-// GET /version
-// router.HandleFunc("/version", as.GetVersion).Methods("GET")
-
-// router.HandleFunc("/addr/{addr}/unconfirmedBalance", as.HandleAddrUnconfirmed).Methods("GET")
-
-// NOTE: This pulls data from outside price APIs. Might want to implement a couple
-// NOTE: Lets cache this data server side the same way we are doing with the block index
-// GET /currency
-// router.HandleFunc("/currency", as.GetCurrency).Methods("GET")
-// curl https://www.bitstamp.net/api/v2/ticker/btcusd/
-// curl https://blockchain.info/ticker
-// curl https://api.coindesk.com/v1/bpi/currentprice/usd.json
-
-// /insight-api/blocks?limit=3&blockDate=2016-04-22
-// NOTE: We are going to need to keep a cache of this data on the server
-// router.HandleFunc("/blocks", as.HandleGetBlocksByDate).Methods("GET")
 
 // TxPost models a post request for sending a transaction
 type TxPost struct {
@@ -546,4 +640,11 @@ func NewSyncResponse(bc *btcjson.GetBlockChainInfoResult) []byte {
 		Type:             "addrindex-server",
 	})
 	return out
+}
+
+// HandleGetCurrency handles the /currency route
+func (as *AddrServer) HandleGetCurrency(w http.ResponseWriter, r *http.Request) {
+	cd := NewCurrencyData()
+	cd.Status = 200
+	w.Write(cd.JSON())
 }
