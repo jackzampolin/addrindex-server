@@ -1,0 +1,17 @@
+version: '3'
+services:
+  bitcoin:
+    image: quay.io/blockstack/bitcoin-addrindex:0.14.1-bitcore
+    volumes:
+      - ./:/root/.bitcoin
+    ports:
+      - "8333:8333"
+      - "8332:8332"
+    command: bitcoind
+  addrindex-server:
+    image: quay.io/blockstack/addrindex-server:v0.14.1-bitcore
+    volumes:
+      - ./config.sample.yaml:/root/.addrindex-server.yaml
+    ports:
+      - "18332:18332"
+    restart: always

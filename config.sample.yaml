@@ -1,6 +1,0 @@
-host: localhost:8332
-usr: user
-pass: password
-ssl: false
-port: 18332
-timeout: 300

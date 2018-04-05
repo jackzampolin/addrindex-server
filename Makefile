@@ -1,4 +1,4 @@
-# Borrowed from: 
+# Borrowed from:
 # https://github.com/silven/go-example/blob/master/Makefile
 # https://vic.demuzere.be/articles/golang-makefile-crosscompile/
 
@@ -7,7 +7,7 @@ VET_REPORT = vet.report
 TEST_REPORT = tests.xml
 GOARCH = amd64
 
-VERSION=0.14.1-bitcore
+VERSION=v0.14.1-bitcore
 COMMIT=$(shell git rev-parse HEAD)
 BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
 
@@ -18,7 +18,7 @@ CURRENT_DIR=$(shell pwd)
 BUILD_DIR_LINK=$(shell readlink ${BUILD_DIR})
 ARTIFACT_DIR=build
 FLAG_PATH=github.com/${GITHUB_USERNAME}/${BINARY}/cmd
-DOCKER_TAG=${VERSION}-$(shell git rev-parse --short HEAD)
+DOCKER_TAG=${VERSION}
 DOCKER_IMAGE=quay.io/blockstack/addrindex-server
 
 # Setup the -ldflags option for go build here, interpolate the variable values
@@ -27,7 +27,7 @@ LDFLAGS = -ldflags "-X ${FLAG_PATH}.Version=${VERSION} -X ${FLAG_PATH}.Commit=${
 # Build the project
 all: dep clean linux darwin
 
-linux: dep clean 
+linux: dep clean
 	cd ${BUILD_DIR}; \
 	GOOS=linux GOARCH=${GOARCH} go build ${LDFLAGS} -o ${ARTIFACT_DIR}/${BINARY}-linux-${GOARCH} . ; \
 	cd - >/dev/null

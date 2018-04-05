@@ -1,0 +1,6 @@
+host: bitcoin:8332
+usr: usr
+pass: pass
+ssl: false
+port: 18332
+timeout: 300
