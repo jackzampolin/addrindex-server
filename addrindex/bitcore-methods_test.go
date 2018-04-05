@@ -23,7 +23,6 @@ func bitcoreTestSetup() *AddrServer {
 		Pass:    testPass,
 		SSL:     testSSL,
 		Port:    testPort,
-		Timeout: 300,
 		Version: "test",
 		Commit:  "test",
 		Branch:  "test",

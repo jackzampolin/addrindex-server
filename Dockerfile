@@ -25,7 +25,7 @@ FROM alpine
 
 COPY --from=build-env /go/src/github.com/jackzampolin/addrindex-server/build/addrindex-server-linux-amd64 /usr/bin/addrindex-server
 
-COPY config.sample.yaml /root/.addrindex-server.yaml
+COPY deploy/config.sample.yaml /root/.addrindex-server.yaml
 
 ENTRYPOINT ["/usr/bin/addrindex-server"]
 

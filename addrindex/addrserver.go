@@ -31,7 +31,6 @@ type AddrServer struct {
 	DisableTLS      bool
 	Port            int
 	Client          *rpcclient.Client
-	Timeout         int
 	Blocks          *Blocks
 	RedisConnection string
 
@@ -56,7 +55,6 @@ type AddrServerConfig struct {
 	Pass            string `json:"pass"`
 	SSL             bool   `json:"ssl"`
 	Port            int    `json:"port"`
-	Timeout         int    `json:"timeout"`
 	RedisConnection string `json:"redis"`
 	Version         string
 	Commit          string
@@ -71,7 +69,6 @@ func NewAddrServer(cfg *AddrServerConfig) *AddrServer {
 		Pass:            cfg.Pass,
 		DisableTLS:      !cfg.SSL,
 		Port:            cfg.Port,
-		Timeout:         cfg.Timeout,
 		RedisConnection: cfg.RedisConnection,
 		versionData: versionData{
 			Version: cfg.Version,
@@ -96,7 +93,6 @@ func NewTestAddrServer(cfg *AddrServerConfig) *AddrServer {
 		Pass:       cfg.Pass,
 		DisableTLS: !cfg.SSL,
 		Port:       cfg.Port,
-		Timeout:    cfg.Timeout,
 		versionData: versionData{
 			Version: cfg.Version,
 			Commit:  cfg.Commit,
